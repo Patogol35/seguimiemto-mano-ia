@@ -1,62 +1,118 @@
 import { useEffect, useRef } from "react";
-import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
+import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-/* ======================
-UTILS
-====================== */
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const dist2D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-// Versión mejorada: verifica que la punta esté arriba de PIP y PIP arriba de MCP
-const fingerUp = (l, tip, pip, mcp) => l[tip].y < l[pip].y && l[pip].y < l[mcp].y;
-
-/* ======================
-GESTOS ROBUSTOS
-====================== */
-
-function thumbExtended(l) {
-  return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
+// Verifica si un dedo está doblado comparando la distancia entre punta y base
+function isFingerBent(landmarks, tipIndex, pipIndex, mcpIndex) {
+  const tipToMcp = dist2D(landmarks[tipIndex], landmarks[mcpIndex]);
+  const pipToMcp = dist2D(landmarks[pipIndex], landmarks[mcpIndex]);
+  // Si la punta está más cerca de la base que la articulación media → dedo doblado
+  return tipToMcp < pipToMcp;
 }
 
-function fingersClosed(l) {
-  const w = l[0];
-  return (
-    dist(l[8], w) < dist(l[5], w) * 0.9 &&
-    dist(l[12], w) < dist(l[9], w) * 0.9 &&
-    dist(l[16], w) < dist(l[13], w) * 0.9 &&
-    dist(l[20], w) < dist(l[17], w) * 0.9
-  );
+function getGesture(landmarks) {
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const middleTip = landmarks[12];
+  const ringTip = landmarks[16];
+  const pinkyTip = landmarks[20];
+
+  const wrist = landmarks[0];
+
+  // Distancia del pulgar a los otros dedos
+  const thumbToIndex = dist2D(thumbTip, indexTip);
+  const thumbToMiddle = dist2D(thumbTip, middleTip);
+
+  // Dedos doblados?
+  const indexBent = isFingerBent(landmarks, 8, 6, 5);
+  const middleBent = isFingerBent(landmarks, 12, 10, 9);
+  const ringBent = isFingerBent(landmarks, 16, 14, 13);
+  const pinkyBent = isFingerBent(landmarks, 20, 18, 17);
+
+  // Pulgar arriba: pulgar extendido y por encima de la muñeca, otros doblados
+  if (
+    thumbTip.y < wrist.y &&
+    !indexBent &&
+    indexTip.y < landmarks[5].y &&
+    indexBent === false && // índice recto
+    middleBent &&
+    ringBent &&
+    pinkyBent
+  ) {
+    // Esto no es pulgar arriba; ajustamos mejor:
+  }
+
+  // 👍 Pulgar arriba: pulgar alto, otros dedos cerrados
+  if (
+    thumbTip.y < landmarks[2].y && // pulgar arriba
+    indexBent &&
+    middleBent &&
+    ringBent &&
+    pinkyBent
+  ) {
+    return "PULGAR ARRIBA 👍";
+  }
+
+  // 👎 Pulgar abajo
+  if (
+    thumbTip.y > landmarks[2].y && // pulgar abajo
+    indexBent &&
+    middleBent &&
+    ringBent &&
+    pinkyBent
+  ) {
+    return "PULGAR ABAJO 👎";
+  }
+
+  // 👌 OK: pulgar y índice cercanos, otros extendidos
+  if (
+    thumbToIndex < 0.05 &&
+    !indexBent &&
+    !middleBent &&
+    !ringBent &&
+    !pinkyBent
+  ) {
+    return "OK 👌";
+  }
+
+  // ✊ Puño: todos los dedos doblados
+  if (indexBent && middleBent && ringBent && pinkyBent) {
+    return "PUÑO ✊";
+  }
+
+  // 🖐️ Mano abierta: todos rectos
+  if (!indexBent && !middleBent && !ringBent && !pinkyBent) {
+    return "MANO ABIERTA 🖐️";
+  }
+
+  // ✌️ Paz: índice y medio rectos, otros doblados
+  if (!indexBent && !middleBent && ringBent && pinkyBent) {
+    return "PAZ ✌️";
+  }
+
+  // ☝️ Apuntar: solo índice recto
+  if (!indexBent && middleBent && ringBent && pinkyBent) {
+    return "APUNTAR ☝️";
+  }
+
+  // 🤟 Rock: índice y meñique rectos
+  if (!indexBent && middleBent && ringBent && !pinkyBent) {
+    return "ROCK 🤟";
+  }
+
+  return "—";
 }
 
-function isThumbUp(l) {
-  return thumbExtended(l) && l[4].y < l[2].y && fingersClosed(l);
-}
-
-function isThumbDown(l) {
-  return thumbExtended(l) && l[4].y > l[2].y && fingersClosed(l);
-}
-
-function isOK(l) {
-  const thumbToIndex = dist(l[4], l[8]);
-  const wristToMiddleMCP = dist(l[0], l[9]);
-  // Asegura que los otros dedos estén cerrados
-  const middleClosed = !fingerUp(l, 12, 10, 9);
-  const ringClosed = !fingerUp(l, 16, 14, 13);
-  const pinkyClosed = !fingerUp(l, 20, 18, 17);
-  return thumbToIndex < wristToMiddleMCP * 0.3 && middleClosed && ringClosed && pinkyClosed;
-}
-
-/* ======================
-COMPONENTE
-====================== */
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const hands = new Hands({
-      locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ⚠️ quitado espacio extra
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
     });
 
     hands.setOptions({
@@ -66,7 +122,46 @@ export default function HandTracker() {
       minTrackingConfidence: 0.7,
     });
 
-    hands.onResults(onResults);
+    hands.onResults(({ image, multiHandLandmarks }) => {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Dibujar imagen espejada
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      let gesture = "Sin mano";
+
+      if (multiHandLandmarks && multiHandLandmarks.length > 0) {
+        const landmarks = multiHandLandmarks[0];
+        gesture = getGesture(landmarks);
+
+        // Opcional: dibujar puntos (descomenta para depurar)
+        /*
+        for (const lm of landmarks) {
+          const x = lm.x * canvas.width;
+          const y = lm.y * canvas.height;
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, 2 * Math.PI);
+          ctx.fillStyle = "#22c55e";
+          ctx.fill();
+        }
+        */
+      }
+
+      ctx.restore();
+
+      // HUD
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, 0, canvas.width, 56);
+      ctx.font = "bold 28px Segoe UI, Arial";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#22c55e";
+      ctx.fillText(gesture, canvas.width / 2, 38);
+    });
 
     const camera = new Camera(videoRef.current, {
       onFrame: async () => {
@@ -77,57 +172,11 @@ export default function HandTracker() {
     });
 
     camera.start();
-    return () => camera.stop();
+
+    return () => {
+      camera.stop();
+    };
   }, []);
-
-  function detectGesture(l) {
-    const indexUp = fingerUp(l, 8, 6, 5);
-    const middleUp = fingerUp(l, 12, 10, 9);
-    const ringUp = fingerUp(l, 16, 14, 13);
-    const pinkyUp = fingerUp(l, 20, 18, 17);
-
-    if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
-    if (isThumbDown(l)) return "PULGAR ABAJO 👎";
-    if (isOK(l)) return "OK 👌";
-    if (!indexUp && !middleUp && !ringUp && !pinkyUp && dist(l[4], l[0]) < 0.15)
-      return "PUÑO ✊";
-    if (indexUp && middleUp && ringUp && pinkyUp) return "MANO ABIERTA 🖐️";
-    if (indexUp && middleUp && !ringUp && !pinkyUp) return "PAZ ✌️";
-    if (indexUp && !middleUp && !ringUp && !pinkyUp) return "APUNTAR ☝️";
-    if (indexUp && !middleUp && !ringUp && pinkyUp) return "ROCK 🤟";
-
-    return "—";
-  }
-
-  function onResults(results) {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Espejo horizontal
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
-
-    let gesture = "Sin mano";
-
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      // Solo usamos la primera mano (máx 1 por configuración)
-      gesture = detectGesture(results.multiHandLandmarks[0]);
-    }
-
-    // HUD
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, 56);
-
-    ctx.font = "bold 28px Segoe UI, Arial";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 38);
-  }
 
   return (
     <div
@@ -173,4 +222,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-                                }
+}
