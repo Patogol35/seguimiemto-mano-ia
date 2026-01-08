@@ -6,43 +6,47 @@ import { Camera } from "@mediapipe/camera_utils";
 UTILS
 ====================== */
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
 GESTOS ROBUSTOS
 ====================== */
-function isThumbUp(l) {
-  const wrist = l[0];
+function thumbExtended(l) {
+  return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
+}
 
-  const thumbTip = l[4];
-  const thumbMCP = l[2];
-
-  const indexMCP = l[5];
-
-  // dedos cerrados de verdad
-  const indexClosed = dist(l[8], wrist) < dist(l[5], wrist) * 0.9;
-  const middleClosed = dist(l[12], wrist) < dist(l[9], wrist) * 0.9;
-  const ringClosed = dist(l[16], wrist) < dist(l[13], wrist) * 0.9;
-  const pinkyClosed = dist(l[20], wrist) < dist(l[17], wrist) * 0.9;
-
-  // pulgar extendido
-  const thumbExtended =
-    dist(thumbTip, thumbMCP) >
-    dist(indexMCP, wrist) * 0.6;
-
-  // pulgar vertical (no horizontal)
-  const vertical =
-    Math.abs(thumbTip.y - thumbMCP.y) >
-    Math.abs(thumbTip.x - thumbMCP.x);
-
+function fingersClosed(l) {
+  const w = l[0];
   return (
-    thumbExtended &&
-    vertical &&
-    indexClosed &&
-    middleClosed &&
-    ringClosed &&
-    pinkyClosed
+    dist(l[8], w) < dist(l[5], w) * 0.9 &&
+    dist(l[12], w) < dist(l[9], w) * 0.9 &&
+    dist(l[16], w) < dist(l[13], w) * 0.9 &&
+    dist(l[20], w) < dist(l[17], w) * 0.9
+  );
+}
+
+function isThumbUp(l) {
+  return (
+    thumbExtended(l) &&
+    l[4].y < l[2].y &&
+    fingersClosed(l)
+  );
+}
+
+function isThumbDown(l) {
+  return (
+    thumbExtended(l) &&
+    l[4].y > l[2].y &&
+    fingersClosed(l)
+  );
+}
+
+function isOK(l) {
+  return (
+    dist(l[4], l[8]) < 0.04 &&
+    fingerUp(l, 12, 10) &&
+    fingerUp(l, 16, 14) &&
+    fingerUp(l, 20, 18)
   );
 }
 
@@ -87,13 +91,15 @@ export default function HandTracker() {
     const pinky = fingerUp(l, 20, 18);
 
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
+    if (isThumbDown(l)) return "PULGAR ABAJO 👎";
+    if (isOK(l)) return "OK 👌";
     if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
+    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
     if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
     if (index && pinky && !middle && !ring) return "ROCK 🤟";
-    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
 
-    return "GESTO";
+    return "—";
   }
 
   function onResults(results) {
@@ -103,6 +109,7 @@ export default function HandTracker() {
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    /* espejo */
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
@@ -116,24 +123,58 @@ export default function HandTracker() {
       }
     }
 
-    ctx.font = "bold 32px Segoe UI";
+    /* HUD */
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, canvas.width, 56);
+
+    ctx.font = "bold 28px Segoe UI, Arial";
     ctx.textAlign = "center";
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "#000";
-    ctx.strokeText(gesture, canvas.width / 2, 40);
-    ctx.fillStyle = "#fff";
-    ctx.fillText(gesture, canvas.width / 2, 40);
+    ctx.fillStyle = "#22c55e";
+    ctx.fillText(gesture, canvas.width / 2, 38);
   }
 
   return (
-    <div style={{ background: "#020617", minHeight: "100svh", padding: 16 }}>
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={480}
-        style={{ width: "100%", maxWidth: 640 }}
-      />
-      <video ref={videoRef} style={{ display: "none" }} />
+    <div
+      style={{
+        minHeight: "100svh",
+        background: "linear-gradient(180deg,#020617,#020617)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: 20,
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          color: "#94a3b8",
+          fontSize: 13,
+          letterSpacing: 0.4,
+        }}
+      >
+        Autor: Jorge Patricio Santamaría Cherrez
+      </div>
+
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 640,
+          aspectRatio: "4 / 3",
+          borderRadius: 18,
+          overflow: "hidden",
+          border: "1px solid rgba(34,197,94,0.4)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+          background: "#000",
+        }}
+      >
+        <video ref={videoRef} style={{ display: "none" }} />
+        <canvas
+          ref={canvasRef}
+          width={640}
+          height={480}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
     </div>
   );
 }
