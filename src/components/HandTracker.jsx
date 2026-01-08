@@ -3,7 +3,7 @@ import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-   DRAW FUNCTIONS
+   DRAW SAFE (Vercel)
 ====================== */
 const drawLandmarks = (ctx, landmarks) => {
   ctx.fillStyle = "#22c55e";
@@ -14,7 +14,7 @@ const drawLandmarks = (ctx, landmarks) => {
       p.y * ctx.canvas.height,
       4,
       0,
-      Math.PI * 2
+      2 * Math.PI
     );
     ctx.fill();
   }
@@ -33,23 +33,9 @@ const drawConnectors = (ctx, landmarks, connections) => {
   }
 };
 
-/* ======================
-   UTILS
-====================== */
-const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const fingerExtended = (l, tip, pip) => l[tip].y < l[pip].y;
-const isPalmVertical = (l) => Math.abs(l[0].x - l[9].x) < 0.05;
-
-/* ======================
-   COMPONENT
-====================== */
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-
-  const lastIndexX = useRef(null);
-  const lastPinchDist = useRef(null);
-  const lastGesture = useRef("");
 
   useEffect(() => {
     const hands = new Hands({
@@ -78,8 +64,10 @@ export default function HandTracker() {
   }, []);
 
   /* ======================
-     GESTURE DETECTION
+     LÓGICA DE DEDOS
   ====================== */
+  const fingerExtended = (l, tip, pip) => l[tip].y < l[pip].y;
+
   const detectGesture = (l) => {
     const fingers = {
       thumb: fingerExtended(l, 4, 3),
@@ -90,48 +78,8 @@ export default function HandTracker() {
     };
 
     const count = Object.values(fingers).filter(Boolean).length;
-    const pinchDist = distance(l[4], l[8]);
-    const indexX = l[8].x;
 
-    // 👌 OK
-    if (
-      pinchDist < 0.03 &&
-      fingers.middle &&
-      fingers.ring &&
-      fingers.pinky
-    )
-      return "OK 👌";
-
-    // 🔍 🔎 ZOOM
-    if (lastPinchDist.current !== null) {
-      if (pinchDist - lastPinchDist.current > 0.015)
-        return "ZOOM IN 🔍";
-      if (lastPinchDist.current - pinchDist > 0.015)
-        return "ZOOM OUT 🔎";
-    }
-    lastPinchDist.current = pinchDist;
-
-    // 👉 👈 SWIPE
-    if (fingers.index && !fingers.middle && !fingers.ring) {
-      if (lastIndexX.current !== null) {
-        const delta = indexX - lastIndexX.current;
-        if (delta > 0.05) return "SWIPE ➡️";
-        if (delta < -0.05) return "SWIPE ⬅️";
-      }
-      lastIndexX.current = indexX;
-    }
-
-    // ✋ STOP
-    if (count === 5 && isPalmVertical(l)) return "STOP ✋";
-
-    // 🧲 GRAB
-    if (
-      lastGesture.current === "MANO ABIERTA 🖐️" &&
-      count === 0
-    )
-      return "GRAB 🧲";
-
-    // 👍
+    // PRIORIDADES
     if (
       fingers.thumb &&
       !fingers.index &&
@@ -141,28 +89,35 @@ export default function HandTracker() {
     )
       return "PULGAR ARRIBA 👍";
 
-    // ✌️
-    if (fingers.index && fingers.middle && !fingers.ring)
+    if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky)
       return "PAZ ✌️";
 
-    // ☝️
-    if (fingers.index && !fingers.middle)
+    if (
+      fingers.index &&
+      !fingers.middle &&
+      !fingers.ring &&
+      !fingers.pinky
+    )
       return "APUNTAR ☝️";
 
-    // 🤟
-    if (fingers.index && fingers.pinky && !fingers.middle)
+    if (fingers.index && fingers.pinky && !fingers.middle && !fingers.ring)
       return "ROCK 🤟";
 
     if (count === 5) return "MANO ABIERTA 🖐️";
     if (count === 0) return "PUÑO ✊";
 
-    if (pinchDist < 0.035) return "CLICK 👆";
+    // CLICK
+    const clickDist = Math.hypot(
+      l[4].x - l[8].x,
+      l[4].y - l[8].y
+    );
+    if (clickDist < 0.035) return "CLICK 👌";
 
     return `DEDOS: ${count}`;
   };
 
   /* ======================
-     RESULTS
+     RESULTADOS
   ====================== */
   const onResults = (results) => {
     const canvas = canvasRef.current;
@@ -178,7 +133,6 @@ export default function HandTracker() {
         drawConnectors(ctx, l, HAND_CONNECTIONS);
         drawLandmarks(ctx, l);
         gesture = detectGesture(l);
-        lastGesture.current = gesture;
       }
     }
 
