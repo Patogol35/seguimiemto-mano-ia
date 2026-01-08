@@ -24,10 +24,10 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100svh; /* viewport real móvil */
+  background-color: #020617;
+  overflow: hidden;   /* evita zoom raro */
 }
 
 h1 {
