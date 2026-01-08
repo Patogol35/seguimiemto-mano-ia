@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
+import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
@@ -26,19 +26,11 @@ function fingersClosed(l) {
 }
 
 function isThumbUp(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y < l[2].y &&
-    fingersClosed(l)
-  );
+  return thumbExtended(l) && l[4].y < l[2].y && fingersClosed(l);
 }
 
 function isThumbDown(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y > l[2].y &&
-    fingersClosed(l)
-  );
+  return thumbExtended(l) && l[4].y > l[2].y && fingersClosed(l);
 }
 
 function isOK(l) {
@@ -109,7 +101,7 @@ export default function HandTracker() {
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* espejo */
+    // espejo
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
@@ -123,47 +115,60 @@ export default function HandTracker() {
       }
     }
 
-    /* HUD */
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, 56);
+    // HUD
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0, 0, canvas.width, 44);
 
-    ctx.font = "bold 28px Segoe UI, Arial";
+    ctx.font = "bold 22px Segoe UI, Arial";
     ctx.textAlign = "center";
     ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 38);
+    ctx.fillText(gesture, canvas.width / 2, 30);
   }
 
   return (
     <div
       style={{
-        minHeight: "100svh",
-        background: "linear-gradient(180deg,#020617,#020617)",
+        minHeight: "100dvh",
+        background: "#020617",
         display: "flex",
         flexDirection: "column",
+        justifyContent: "center",
         alignItems: "center",
-        padding: 20,
-        gap: 12,
+        padding: 8,
+        gap: 6,
       }}
     >
+      {/* TÍTULO PEQUEÑO */}
       <div
         style={{
+          fontSize: 12,
           color: "#94a3b8",
-          fontSize: 13,
-          letterSpacing: 0.4,
+          letterSpacing: 0.3,
+        }}
+      >
+        Control por Gestos con IA
+      </div>
+
+      {/* AUTOR */}
+      <div
+        style={{
+          fontSize: 11,
+          color: "#64748b",
         }}
       >
         Autor: Jorge Patricio Santamaría Cherrez
       </div>
 
+      {/* CÁMARA */}
       <div
         style={{
           width: "100%",
-          maxWidth: 640,
-          aspectRatio: "4 / 3",
-          borderRadius: 18,
+          maxWidth: 420,
+          aspectRatio: "3 / 4",
+          borderRadius: 16,
           overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.4)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+          border: "1px solid rgba(34,197,94,0.35)",
+          boxShadow: "0 16px 30px rgba(0,0,0,0.6)",
           background: "#000",
         }}
       >
