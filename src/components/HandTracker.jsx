@@ -117,12 +117,12 @@ export default function HandTracker() {
 
     // HUD
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(0, 0, canvas.width, 44);
+    ctx.fillRect(0, 0, canvas.width, 40);
 
-    ctx.font = "bold 22px Segoe UI, Arial";
+    ctx.font = "bold 20px Segoe UI, Arial";
     ctx.textAlign = "center";
     ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 30);
+    ctx.fillText(gesture, canvas.width / 2, 26);
   }
 
   return (
@@ -132,27 +132,28 @@ export default function HandTracker() {
         background: "#020617",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
         alignItems: "center",
-        padding: 8,
-        gap: 6,
+        justifyContent: "center",
+        padding: 6,
+        gap: 4,
       }}
     >
-      {/* TÍTULO PEQUEÑO */}
+      {/* TÍTULO */}
       <div
         style={{
-          fontSize: 12,
+          fontSize: 11,
+          fontWeight: 400,
           color: "#94a3b8",
-          letterSpacing: 0.3,
+          letterSpacing: 0.2,
         }}
       >
-        Control por Gestos con IA
+        🖐️ Control por Gestos con IA
       </div>
 
       {/* AUTOR */}
       <div
         style={{
-          fontSize: 11,
+          fontSize: 10,
           color: "#64748b",
         }}
       >
@@ -164,7 +165,8 @@ export default function HandTracker() {
         style={{
           width: "100%",
           maxWidth: 420,
-          aspectRatio: "3 / 4",
+          aspectRatio: "4 / 3",
+          maxHeight: "70dvh",
           borderRadius: 16,
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.35)",
@@ -177,7 +179,12 @@ export default function HandTracker() {
           ref={canvasRef}
           width={640}
           height={480}
-          style={{ width: "100%", height: "100%" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "block",
+            objectFit: "contain",
+          }}
         />
       </div>
     </div>
