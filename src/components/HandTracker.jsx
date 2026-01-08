@@ -3,18 +3,16 @@ import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-   DIBUJO MANUAL (SAFE)
+   DRAW SAFE (Vercel)
 ====================== */
-const drawLandmarks = (ctx, landmarks, options = {}) => {
-  const { color = "#22c55e", radius = 4 } = options;
-  ctx.fillStyle = color;
-
-  for (const point of landmarks) {
+const drawLandmarks = (ctx, landmarks) => {
+  ctx.fillStyle = "#22c55e";
+  for (const p of landmarks) {
     ctx.beginPath();
     ctx.arc(
-      point.x * ctx.canvas.width,
-      point.y * ctx.canvas.height,
-      radius,
+      p.x * ctx.canvas.width,
+      p.y * ctx.canvas.height,
+      4,
       0,
       2 * Math.PI
     );
@@ -22,39 +20,27 @@ const drawLandmarks = (ctx, landmarks, options = {}) => {
   }
 };
 
-const drawConnectors = (ctx, landmarks, connections, options = {}) => {
-  const { color = "#22c55e", lineWidth = 3 } = options;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth;
-
-  for (const [start, end] of connections) {
-    const p1 = landmarks[start];
-    const p2 = landmarks[end];
-
+const drawConnectors = (ctx, landmarks, connections) => {
+  ctx.strokeStyle = "#22c55e";
+  ctx.lineWidth = 3;
+  for (const [a, b] of connections) {
+    const p1 = landmarks[a];
+    const p2 = landmarks[b];
     ctx.beginPath();
-    ctx.moveTo(
-      p1.x * ctx.canvas.width,
-      p1.y * ctx.canvas.height
-    );
-    ctx.lineTo(
-      p2.x * ctx.canvas.width,
-      p2.y * ctx.canvas.height
-    );
+    ctx.moveTo(p1.x * ctx.canvas.width, p1.y * ctx.canvas.height);
+    ctx.lineTo(p2.x * ctx.canvas.width, p2.y * ctx.canvas.height);
     ctx.stroke();
   }
 };
 
-/* ======================
-   COMPONENTE
-====================== */
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const hands = new Hands({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -78,20 +64,42 @@ export default function HandTracker() {
   }, []);
 
   /* ======================
-     DETECTORES DE GESTOS
+     LÓGICA DE DEDOS
   ====================== */
-  const isFist = (l) =>
-    [8, 12, 16, 20].every((i) => l[i].y > l[i - 2].y);
+  const fingerExtended = (l, tip, pip) => l[tip].y < l[pip].y;
 
-  const isOpenHand = (l) =>
-    [8, 12, 16, 20].every((i) => l[i].y < l[i - 2].y);
+  const detectGesture = (l) => {
+    const fingers = {
+      thumb: fingerExtended(l, 4, 3),
+      index: fingerExtended(l, 8, 6),
+      middle: fingerExtended(l, 12, 10),
+      ring: fingerExtended(l, 16, 14),
+      pinky: fingerExtended(l, 20, 18),
+    };
 
-  const isClick = (l) => {
-    const d = Math.hypot(
-      l[4].x - l[8].x,
-      l[4].y - l[8].y
-    );
-    return d < 0.035;
+    const count = Object.values(fingers).filter(Boolean).length;
+
+    // PRIORIDADES
+    if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky)
+      return "PULGAR ARRIBA 👍";
+
+    if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky)
+      return "PAZ ✌️";
+
+    if (fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky)
+      return "APUNTAR ☝️";
+
+    if (fingers.index && fingers.pinky && !fingers.middle && !fingers.ring)
+      return "ROCK 🤟";
+
+    if (count === 5) return "MANO ABIERTA 🖐️";
+    if (count === 0) return "PUÑO ✊";
+
+    // CLICK
+    const clickDist = Math.hypot(l[4].x - l[8].x, l[4].y - l[8].y);
+    if (clickDist < 0.035) return "CLICK 👌";
+
+    return `DEDOS: ${count}`;
   };
 
   /* ======================
@@ -107,14 +115,10 @@ export default function HandTracker() {
     let gesture = "Sin mano";
 
     if (results.multiHandLandmarks) {
-      for (const landmarks of results.multiHandLandmarks) {
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS);
-        drawLandmarks(ctx, landmarks);
-
-        if (isClick(landmarks)) gesture = "CLICK ✌️";
-        else if (isFist(landmarks)) gesture = "PUÑO ✊";
-        else if (isOpenHand(landmarks)) gesture = "MANO ABIERTA 🤚";
-        else gesture = "GESTO INTERMEDIO";
+      for (const l of results.multiHandLandmarks) {
+        drawConnectors(ctx, l, HAND_CONNECTIONS);
+        drawLandmarks(ctx, l);
+        gesture = detectGesture(l);
       }
     }
 
@@ -123,9 +127,6 @@ export default function HandTracker() {
     ctx.fillText(`Gesto: ${gesture}`, 20, 40);
   };
 
-  /* ======================
-     UI
-  ====================== */
   return (
     <div style={{ display: "flex", justifyContent: "center" }}>
       <video ref={videoRef} style={{ display: "none" }} />
