@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-   DRAW
+   DRAW UTILS
 ====================== */
 const drawLandmarks = (ctx, landmarks) => {
   ctx.fillStyle = "#22c55e";
@@ -12,7 +12,7 @@ const drawLandmarks = (ctx, landmarks) => {
     ctx.arc(
       p.x * ctx.canvas.width,
       p.y * ctx.canvas.height,
-      4,
+      3.5,
       0,
       Math.PI * 2
     );
@@ -22,7 +22,7 @@ const drawLandmarks = (ctx, landmarks) => {
 
 const drawConnectors = (ctx, landmarks, connections) => {
   ctx.strokeStyle = "#22c55e";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   for (const [a, b] of connections) {
     const p1 = landmarks[a];
     const p2 = landmarks[b];
@@ -39,6 +39,9 @@ export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  /* ======================
+     MEDIA PIPE INIT
+  ====================== */
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
@@ -55,39 +58,37 @@ export default function HandTracker() {
     hands.onResults(onResults);
 
     const camera = new Camera(videoRef.current, {
+      width: 640,
+      height: 480,
       onFrame: async () => {
         await hands.send({ image: videoRef.current });
       },
-      width: 640,
-      height: 480,
     });
 
     camera.start();
   }, []);
 
   /* ======================
-     GESTOS
+     GESTURE LOGIC
   ====================== */
   const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
   const detectGesture = (l) => {
     const thumbOpen =
-      dist(l[4], l[5]) > dist(l[3], l[5]) * 1.2;
+      dist(l[4], l[5]) > dist(l[3], l[5]) * 1.15;
 
     const index = fingerUp(l, 8, 6);
     const middle = fingerUp(l, 12, 10);
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
 
-    const fingers = { thumb: thumbOpen, index, middle, ring, pinky };
-    const count = Object.values(fingers).filter(Boolean).length;
+    const count = [thumbOpen, index, middle, ring, pinky].filter(Boolean).length;
 
     if (count === 0) return "PUÑO ✊";
-    if (thumbOpen && !index && !middle && !ring && !pinky)
-      return "PULGAR ARRIBA 👍";
-    if (index && middle && !ring && !pinky) return "PAZ ✌️";
-    if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
-    if (index && pinky && !middle && !ring) return "ROCK 🤟";
+    if (thumbOpen && count === 1) return "PULGAR ARRIBA 👍";
+    if (index && middle && count === 2) return "PAZ ✌️";
+    if (index && count === 1) return "APUNTAR ☝️";
+    if (index && pinky && count === 2) return "ROCK 🤟";
     if (count === 5) return "MANO ABIERTA 🖐️";
     if (dist(l[4], l[8]) < 0.035) return "CLICK 👌";
 
@@ -95,9 +96,9 @@ export default function HandTracker() {
   };
 
   /* ======================
-     RESULTADOS
+     RESULTS
   ====================== */
-  const onResults = (results) => {
+  const onResults = useCallback((results) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
@@ -106,21 +107,21 @@ export default function HandTracker() {
 
     let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        drawConnectors(ctx, l, HAND_CONNECTIONS);
-        drawLandmarks(ctx, l);
-        gesture = detectGesture(l);
-      }
+    if (results.multiHandLandmarks?.length) {
+      const l = results.multiHandLandmarks[0];
+      drawConnectors(ctx, l, HAND_CONNECTIONS);
+      drawLandmarks(ctx, l);
+      gesture = detectGesture(l);
     }
 
+    // HUD TEXT
     ctx.fillStyle = "#22c55e";
-    ctx.font = "22px Arial";
-    ctx.fillText(gesture, 16, 30);
-  };
+    ctx.font = "18px Arial";
+    ctx.fillText(gesture, 14, 22);
+  }, []);
 
   /* ======================
-     UI RESPONSIVE (SIN ZOOM)
+     UI FINAL
   ====================== */
   return (
     <div
@@ -135,32 +136,35 @@ export default function HandTracker() {
     >
       <div
         style={{
-          position: "relative",
           width: "100%",
-          maxWidth: "720px",
+          maxWidth: "760px",
           aspectRatio: "4 / 3",
           borderRadius: "18px",
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.35)",
-          boxShadow: "0 25px 60px rgba(0,0,0,0.6)",
+          boxShadow: "0 30px 60px rgba(0,0,0,0.6)",
           background: "#000",
+          position: "relative",
         }}
       >
-        {/* TÍTULO */}
+        {/* HUD BAR */}
         <div
           style={{
             position: "absolute",
-            top: "12px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "6px 16px",
-            background: "rgba(2,6,23,0.8)",
-            borderRadius: "999px",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "38px",
+            background:
+              "linear-gradient(to bottom, rgba(2,6,23,0.85), rgba(2,6,23,0))",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             color: "#22c55e",
             fontSize: "14px",
-            letterSpacing: "0.5px",
+            letterSpacing: "0.6px",
             zIndex: 2,
-            whiteSpace: "nowrap",
+            pointerEvents: "none",
           }}
         >
           Hand Gesture Recognition
@@ -168,7 +172,6 @@ export default function HandTracker() {
 
         <video ref={videoRef} style={{ display: "none" }} />
 
-        {/* CANVAS RESPONSIVE */}
         <canvas
           ref={canvasRef}
           width={640}
