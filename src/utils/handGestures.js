@@ -10,11 +10,11 @@ export const detectGesture = (l) => {
   const ring = fingerUp(l, 16, 14);
   const pinky = fingerUp(l, 20, 18);
 
+  // 🔥 PULGAR ORIGINAL (el que sí servía)
   const thumbOpen =
-    dist(l[4], l[5]) > dist(l[3], l[5]) * 1.2 &&
-    l[4].y < l[2].y;
+    dist(l[4], l[5]) > dist(l[3], l[5]) * 1.2;
 
-  // 👊 PUÑO PRIMERO
+  // 👊 PUÑO PRIMERO (CLAVE ABSOLUTA)
   if (!thumbOpen && !index && !middle && !ring && !pinky) {
     return "PUÑO ✊";
   }
