@@ -16,8 +16,8 @@ export default function HandTracker() {
     hands.setOptions({
       maxNumHands: 1,
       modelComplexity: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7,
+      minDetectionConfidence: 0.75,
+      minTrackingConfidence: 0.75,
     });
 
     hands.onResults(onResults);
@@ -40,59 +40,42 @@ export default function HandTracker() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    if (results.multiHandLandmarks?.length) {
-      const lm = results.multiHandLandmarks[0];
-      drawLandmarks(ctx, lm);
-      detectGesture(lm);
-    } else {
+    if (!results.multiHandLandmarks?.length) {
       setGesture("Sin mano");
+      return;
     }
+
+    const lm = results.multiHandLandmarks[0];
+    drawLandmarks(ctx, lm);
+    detectGesture(lm);
   };
 
+  const isFingerUp = (tip, pip) => tip.y < pip.y;
+
   const detectGesture = (lm) => {
-    const thumbUp = lm[4].y < lm[3].y;
-    const thumbDown = lm[4].y > lm[3].y;
+    const indexUp = isFingerUp(lm[8], lm[6]);
+    const middleUp = isFingerUp(lm[12], lm[10]);
+    const ringUp = isFingerUp(lm[16], lm[14]);
+    const pinkyUp = isFingerUp(lm[20], lm[18]);
 
-    const index = lm[8].y < lm[6].y;
-    const middle = lm[12].y < lm[10].y;
-    const ring = lm[16].y < lm[14].y;
-    const pinky = lm[20].y < lm[18].y;
+    const fingersUp = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean)
+      .length;
 
-    const fingersUp = [index, middle, ring, pinky].filter(Boolean).length;
-
-    // ✊ PUÑO
-    if (!index && !middle && !ring && !pinky && !thumbUp && !thumbDown) {
+    // ✊ PUÑO → todos abajo
+    if (fingersUp === 0) {
       setGesture("✊ PUÑO");
       return;
     }
 
-    // ✋ MANO ABIERTA
-    if (fingersUp === 4 && thumbUp) {
+    // ✋ MANO ABIERTA → todos arriba
+    if (fingersUp === 4) {
       setGesture("✋ MANO ABIERTA");
       return;
     }
 
-    // 👍 PULGAR ARRIBA
-    if (thumbUp && fingersUp === 0) {
-      setGesture("👍 PULGAR ARRIBA");
-      return;
-    }
-
-    // 👎 PULGAR ABAJO
-    if (thumbDown && fingersUp === 0) {
-      setGesture("👎 PULGAR ABAJO");
-      return;
-    }
-
-    // ✌️ PAZ
-    if (index && middle && !ring && !pinky) {
+    // ✌️ PAZ → índice y medio arriba, otros abajo
+    if (indexUp && middleUp && !ringUp && !pinkyUp) {
       setGesture("✌️ PAZ");
-      return;
-    }
-
-    // 🤟 AMOR (I Love You)
-    if (thumbUp && index && !middle && !ring && pinky) {
-      setGesture("🤟 AMOR");
       return;
     }
 
@@ -115,4 +98,4 @@ export default function HandTracker() {
       <h2>{gesture}</h2>
     </div>
   );
-  }
+}
