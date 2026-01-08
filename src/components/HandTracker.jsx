@@ -40,24 +40,19 @@ GESTOS BASE
 ====================== */
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
-/* Pulgar extendido (horizontal, mano izq / der) */
+/* Pulgar extendido */
 const thumbExtended = (l) => {
   const wrist = l[0];
   const tip = l[4];
   const mcp = l[2];
-
   const isRightHand = tip.x < wrist.x;
-
   return isRightHand
     ? tip.x < mcp.x - 0.04
     : tip.x > mcp.x + 0.04;
 };
 
-/* ======================
-PULGAR ARRIBA REAL (AJUSTADO)
-====================== */
+/* Pulgar arriba (vectorial, tolerante) */
 const thumbUp = (l) => {
-  // Vector del pulgar
   let vx = l[4].x - l[2].x;
   let vy = l[4].y - l[2].y;
 
@@ -70,13 +65,9 @@ const thumbUp = (l) => {
   const ring = fingerUp(l, 16, 14);
   const pinky = fingerUp(l, 20, 18);
 
-  // 🔑 Umbrales humanos (NO perfectos)
-  const pointingUp = vy < -0.55;           // antes -0.8 ❌
-  const notSideways = Math.abs(vx) < 0.6;  // antes 0.35 ❌
-
   return (
-    pointingUp &&
-    notSideways &&
+    vy < -0.55 &&
+    Math.abs(vx) < 0.6 &&
     !index &&
     !middle &&
     !ring &&
@@ -90,6 +81,12 @@ COMPONENTE
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+
+  // 🔑 ESTABILIZACIÓN
+  const lastGestureRef = useRef("Sin mano");
+  const candidateRef = useRef(null);
+  const framesRef = useRef(0);
+  const STABLE_FRAMES = 6;
 
   useEffect(() => {
     const hands = new Hands({
@@ -119,19 +116,16 @@ export default function HandTracker() {
   }, []);
 
   /* ======================
-DETECTAR GESTO
+DETECTAR GESTO (RAW)
 ====================== */
-  const detectGesture = (l) => {
+  const detectRawGesture = (l) => {
     const index = fingerUp(l, 8, 6);
     const middle = fingerUp(l, 12, 10);
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
     const thumb = thumbExtended(l);
 
-    if (!thumb && !index && !middle && !ring && !pinky) {
-      return "PUÑO ✊";
-    }
-
+    if (!thumb && !index && !middle && !ring && !pinky) return "PUÑO ✊";
     if (thumbUp(l)) return "PULGAR ARRIBA 👍";
 
     const count = [thumb, index, middle, ring, pinky].filter(Boolean).length;
@@ -140,14 +134,13 @@ DETECTAR GESTO
     if (index && count === 1) return "APUNTAR ☝️";
     if (index && pinky && count === 2) return "ROCK 🤟";
     if (count === 5) return "MANO ABIERTA 🖐️";
-
     if (dist(l[4], l[8]) < 0.035) return "CLICK 👌";
 
     return `DEDOS: ${count}`;
   };
 
   /* ======================
-RESULTADOS
+RESULTADOS (ESTABLE)
 ====================== */
   const onResults = (results) => {
     const canvas = canvasRef.current;
@@ -156,24 +149,37 @@ RESULTADOS
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    let gesture = "Sin mano";
+    let rawGesture = "Sin mano";
 
     if (results.multiHandLandmarks) {
       for (const l of results.multiHandLandmarks) {
         drawConnectors(ctx, l, HAND_CONNECTIONS);
         drawLandmarks(ctx, l);
-        gesture = detectGesture(l);
+        rawGesture = detectRawGesture(l);
       }
     }
+
+    // 🔒 ESTABILIZACIÓN
+    if (rawGesture === candidateRef.current) {
+      framesRef.current++;
+    } else {
+      candidateRef.current = rawGesture;
+      framesRef.current = 1;
+    }
+
+    if (framesRef.current >= STABLE_FRAMES) {
+      lastGestureRef.current = candidateRef.current;
+    }
+
+    const gesture = lastGestureRef.current;
 
     ctx.font = "bold 32px Segoe UI, Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-
     ctx.lineWidth = 4;
+
     ctx.strokeStyle = "#000";
     ctx.strokeText(gesture, canvas.width / 2, 48);
-
     ctx.fillStyle = "#fff";
     ctx.fillText(gesture, canvas.width / 2, 48);
   };
@@ -193,15 +199,7 @@ UI
         gap: "12px",
       }}
     >
-      <h3
-        style={{
-          color: "#94a3b8",
-          fontSize: "14px",
-          margin: 0,
-          textAlign: "center",
-          fontFamily: "Segoe UI, Arial",
-        }}
-      >
+      <h3 style={{ color: "#94a3b8", fontSize: 14 }}>
         Autor: Jorge Patricio Santamaría Cherrez
       </h3>
 
@@ -213,17 +211,11 @@ UI
           borderRadius: "16px",
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.4)",
-          boxShadow: "0 12px 30px rgba(0,0,0,0.5)",
           background: "#000",
         }}
       >
         <video ref={videoRef} style={{ display: "none" }} />
-        <canvas
-          ref={canvasRef}
-          width={640}
-          height={480}
-          style={{ width: "100%", height: "100%" }}
-        />
+        <canvas ref={canvasRef} width={640} height={480} />
       </div>
     </div>
   );
