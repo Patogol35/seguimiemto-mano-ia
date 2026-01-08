@@ -25,9 +25,10 @@ a:hover {
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100svh; /* viewport real móvil */
+  min-height: 100svh;
   background-color: #020617;
-  overflow: hidden;   /* evita zoom raro */
+  overflow-x: hidden;   
+  overflow-y: auto;     
 }
 
 h1 {
