@@ -88,7 +88,7 @@ export default function HandTracker() {
   };
 
   /* ======================
-     RESULTADOS CON TEXTO SUPER CLARO
+     RESULTADOS CON TEXTO CLARO
   ====================== */
   const onResults = (results) => {
     const canvas = canvasRef.current;
@@ -107,35 +107,27 @@ export default function HandTracker() {
       }
     }
 
-    // Configuración del texto ultra visible
+    // Texto del gesto: ultra visible
     const fontSize = 32;
     ctx.font = `bold ${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Sombra suave (opcional, pero ayuda)
-    ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 2;
-
-    // Dibujar borde negro (outline)
-    ctx.strokeStyle = "#000000";
+    // Contorno negro
+    ctx.strokeStyle = "#000";
     ctx.lineWidth = 4;
     ctx.strokeText(gesture, canvas.width / 2, 48);
 
-    // Dibujar texto blanco encima
-    ctx.fillStyle = "#ffffff";
+    // Relleno blanco
+    ctx.fillStyle = "#fff";
     ctx.fillText(gesture, canvas.width / 2, 48);
 
-    // Resetear estilos para futuros dibujos
+    // Reset
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
   };
 
   /* ======================
-     UI LIMPIA Y RESPONSIVA
+     UI FINAL: TÍTULO + CÁMARA
   ====================== */
   return (
     <div
@@ -146,11 +138,28 @@ export default function HandTracker() {
         flexDirection: "column",
         justifyContent: "flex-start",
         alignItems: "center",
-        padding: "20px 16px",
-        gap: "12px",
+        padding: "24px 16px 16px",
+        gap: "16px",
         boxSizing: "border-box",
       }}
     >
+      {/* Título del autor — elegante y discreto */}
+      <h3
+        style={{
+          color: "#94a3b8", // slate-400: gris suave
+          fontWeight: 500,
+          fontSize: "16px",
+          margin: 0,
+          letterSpacing: "0.5px",
+          textAlign: "center",
+          fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+          opacity: 0.9,
+        }}
+      >
+        Autor: Jorge Patricio Santamaría Cherrez
+      </h3>
+
+      {/* Contenedor de cámara */}
       <div
         style={{
           width: "100%",
@@ -177,4 +186,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-       }
+        }
