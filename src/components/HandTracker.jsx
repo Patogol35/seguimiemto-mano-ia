@@ -2,104 +2,69 @@ import { useEffect, useRef } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-const dist2D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-
-// Verifica si un dedo está doblado comparando la distancia entre punta y base
-function isFingerBent(landmarks, tipIndex, pipIndex, mcpIndex) {
-  const tipToMcp = dist2D(landmarks[tipIndex], landmarks[mcpIndex]);
-  const pipToMcp = dist2D(landmarks[pipIndex], landmarks[mcpIndex]);
-  // Si la punta está más cerca de la base que la articulación media → dedo doblado
-  return tipToMcp < pipToMcp;
+// Calcula el ángulo entre tres puntos: a - b - c (en radianes)
+function getAngle(a, b, c) {
+  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+  let angle = Math.abs(radians * (180 / Math.PI));
+  if (angle > 180) angle = 360 - angle;
+  return angle;
 }
 
-function getGesture(landmarks) {
+// Dedo doblado si el ángulo en PIP es < 100 grados (ajustable)
+function isFingerClosed(landmarks, mcp, pip, dip, tip) {
+  const angle = getAngle(landmarks[mcp], landmarks[pip], landmarks[tip]);
+  return angle < 100; // umbral empírico: funciona bien en pruebas
+}
+
+function detectGesture(landmarks) {
+  // Índice: 5 (MCP), 6 (PIP), 7 (DIP), 8 (TIP)
+  const indexClosed = isFingerClosed(landmarks, 5, 6, 7, 8);
+  // Medio: 9, 10, 11, 12
+  const middleClosed = isFingerClosed(landmarks, 9, 10, 11, 12);
+  // Anular: 13, 14, 15, 16
+  const ringClosed = isFingerClosed(landmarks, 13, 14, 15, 16);
+  // Meñique: 17, 18, 19, 20
+  const pinkyClosed = isFingerClosed(landmarks, 17, 18, 19, 20);
+
+  // Pulgar: usamos posición relativa (no ángulo, es más complejo)
   const thumbTip = landmarks[4];
-  const indexTip = landmarks[8];
-  const middleTip = landmarks[12];
-  const ringTip = landmarks[16];
-  const pinkyTip = landmarks[20];
+  const thumbIp = landmarks[3];
+  const thumbCmc = landmarks[1]; // base del pulgar
 
-  const wrist = landmarks[0];
+  const isThumbUp = thumbTip.y < thumbIp.y && thumbTip.y < landmarks[0].y;
+  const isThumbDown = thumbTip.y > thumbIp.y && thumbTip.y > landmarks[0].y;
 
-  // Distancia del pulgar a los otros dedos
-  const thumbToIndex = dist2D(thumbTip, indexTip);
-  const thumbToMiddle = dist2D(thumbTip, middleTip);
-
-  // Dedos doblados?
-  const indexBent = isFingerBent(landmarks, 8, 6, 5);
-  const middleBent = isFingerBent(landmarks, 12, 10, 9);
-  const ringBent = isFingerBent(landmarks, 16, 14, 13);
-  const pinkyBent = isFingerBent(landmarks, 20, 18, 17);
-
-  // Pulgar arriba: pulgar extendido y por encima de la muñeca, otros doblados
-  if (
-    thumbTip.y < wrist.y &&
-    !indexBent &&
-    indexTip.y < landmarks[5].y &&
-    indexBent === false && // índice recto
-    middleBent &&
-    ringBent &&
-    pinkyBent
-  ) {
-    // Esto no es pulgar arriba; ajustamos mejor:
-  }
-
-  // 👍 Pulgar arriba: pulgar alto, otros dedos cerrados
-  if (
-    thumbTip.y < landmarks[2].y && // pulgar arriba
-    indexBent &&
-    middleBent &&
-    ringBent &&
-    pinkyBent
-  ) {
-    return "PULGAR ARRIBA 👍";
-  }
-
-  // 👎 Pulgar abajo
-  if (
-    thumbTip.y > landmarks[2].y && // pulgar abajo
-    indexBent &&
-    middleBent &&
-    ringBent &&
-    pinkyBent
-  ) {
-    return "PULGAR ABAJO 👎";
-  }
-
-  // 👌 OK: pulgar y índice cercanos, otros extendidos
-  if (
-    thumbToIndex < 0.05 &&
-    !indexBent &&
-    !middleBent &&
-    !ringBent &&
-    !pinkyBent
-  ) {
-    return "OK 👌";
-  }
-
-  // ✊ Puño: todos los dedos doblados
-  if (indexBent && middleBent && ringBent && pinkyBent) {
+  // 👊 Puño: los 4 dedos cerrados
+  if (indexClosed && middleClosed && ringClosed && pinkyClosed) {
+    if (isThumbUp) return "PULGAR ARRIBA 👍";
+    if (isThumbDown) return "PULGAR ABAJO 👎";
     return "PUÑO ✊";
   }
 
-  // 🖐️ Mano abierta: todos rectos
-  if (!indexBent && !middleBent && !ringBent && !pinkyBent) {
+  // 🖐️ Mano abierta: todos los dedos abiertos
+  if (!indexClosed && !middleClosed && !ringClosed && !pinkyClosed) {
     return "MANO ABIERTA 🖐️";
   }
 
-  // ✌️ Paz: índice y medio rectos, otros doblados
-  if (!indexBent && !middleBent && ringBent && pinkyBent) {
+  // ✌️ Paz: índice y medio abiertos, otros cerrados
+  if (!indexClosed && !middleClosed && ringClosed && pinkyClosed) {
     return "PAZ ✌️";
   }
 
-  // ☝️ Apuntar: solo índice recto
-  if (!indexBent && middleBent && ringBent && pinkyBent) {
+  // ☝️ Apuntar: solo índice abierto
+  if (!indexClosed && middleClosed && ringClosed && pinkyClosed) {
     return "APUNTAR ☝️";
   }
 
-  // 🤟 Rock: índice y meñique rectos
-  if (!indexBent && middleBent && ringBent && !pinkyBent) {
+  // 🤟 Rock: índice y meñique abiertos
+  if (!indexClosed && middleClosed && ringClosed && !pinkyClosed) {
     return "ROCK 🤟";
+  }
+
+  // 👌 OK: pulgar cerca del índice Y los otros dedos abiertos
+  const distThumbIndex = Math.hypot(thumbTip.x - landmarks[8].x, thumbTip.y - landmarks[8].y);
+  if (distThumbIndex < 0.08 && !middleClosed && !ringClosed && !pinkyClosed) {
+    return "OK 👌";
   }
 
   return "—";
@@ -128,31 +93,17 @@ export default function HandTracker() {
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Dibujar imagen espejada
+      // Espejo
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
 
       let gesture = "Sin mano";
 
-      if (multiHandLandmarks && multiHandLandmarks.length > 0) {
-        const landmarks = multiHandLandmarks[0];
-        gesture = getGesture(landmarks);
-
-        // Opcional: dibujar puntos (descomenta para depurar)
-        /*
-        for (const lm of landmarks) {
-          const x = lm.x * canvas.width;
-          const y = lm.y * canvas.height;
-          ctx.beginPath();
-          ctx.arc(x, y, 4, 0, 2 * Math.PI);
-          ctx.fillStyle = "#22c55e";
-          ctx.fill();
-        }
-        */
+      if (multiHandLandmarks?.[0]) {
+        gesture = detectGesture(multiHandLandmarks[0]);
       }
-
-      ctx.restore();
 
       // HUD
       ctx.fillStyle = "rgba(0,0,0,0.6)";
@@ -172,10 +123,7 @@ export default function HandTracker() {
     });
 
     camera.start();
-
-    return () => {
-      camera.stop();
-    };
+    return () => camera.stop();
   }, []);
 
   return (
@@ -222,4 +170,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-}
+      }
