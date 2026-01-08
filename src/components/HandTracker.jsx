@@ -1,4 +1,4 @@
-      import { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
@@ -6,11 +6,14 @@ import { Camera } from "@mediapipe/camera_utils";
 UTILS
 ====================== */
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
+
+// Versión mejorada: verifica que la punta esté arriba de PIP y PIP arriba de MCP
+const fingerUp = (l, tip, pip, mcp) => l[tip].y < l[pip].y && l[pip].y < l[mcp].y;
 
 /* ======================
 GESTOS ROBUSTOS
 ====================== */
+
 function thumbExtended(l) {
   return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
 }
@@ -26,28 +29,21 @@ function fingersClosed(l) {
 }
 
 function isThumbUp(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y < l[2].y &&
-    fingersClosed(l)
-  );
+  return thumbExtended(l) && l[4].y < l[2].y && fingersClosed(l);
 }
 
 function isThumbDown(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y > l[2].y &&
-    fingersClosed(l)
-  );
+  return thumbExtended(l) && l[4].y > l[2].y && fingersClosed(l);
 }
 
 function isOK(l) {
-  return (
-    dist(l[4], l[8]) < 0.04 &&
-    fingerUp(l, 12, 10) &&
-    fingerUp(l, 16, 14) &&
-    fingerUp(l, 20, 18)
-  );
+  const thumbToIndex = dist(l[4], l[8]);
+  const wristToMiddleMCP = dist(l[0], l[9]);
+  // Asegura que los otros dedos estén cerrados
+  const middleClosed = !fingerUp(l, 12, 10, 9);
+  const ringClosed = !fingerUp(l, 16, 14, 13);
+  const pinkyClosed = !fingerUp(l, 20, 18, 17);
+  return thumbToIndex < wristToMiddleMCP * 0.3 && middleClosed && ringClosed && pinkyClosed;
 }
 
 /* ======================
@@ -60,7 +56,7 @@ export default function HandTracker() {
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ⚠️ quitado espacio extra
     });
 
     hands.setOptions({
@@ -85,19 +81,20 @@ export default function HandTracker() {
   }, []);
 
   function detectGesture(l) {
-    const index = fingerUp(l, 8, 6);
-    const middle = fingerUp(l, 12, 10);
-    const ring = fingerUp(l, 16, 14);
-    const pinky = fingerUp(l, 20, 18);
+    const indexUp = fingerUp(l, 8, 6, 5);
+    const middleUp = fingerUp(l, 12, 10, 9);
+    const ringUp = fingerUp(l, 16, 14, 13);
+    const pinkyUp = fingerUp(l, 20, 18, 17);
 
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
     if (isThumbDown(l)) return "PULGAR ABAJO 👎";
     if (isOK(l)) return "OK 👌";
-    if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
-    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
-    if (index && middle && !ring && !pinky) return "PAZ ✌️";
-    if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
-    if (index && pinky && !middle && !ring) return "ROCK 🤟";
+    if (!indexUp && !middleUp && !ringUp && !pinkyUp && dist(l[4], l[0]) < 0.15)
+      return "PUÑO ✊";
+    if (indexUp && middleUp && ringUp && pinkyUp) return "MANO ABIERTA 🖐️";
+    if (indexUp && middleUp && !ringUp && !pinkyUp) return "PAZ ✌️";
+    if (indexUp && !middleUp && !ringUp && !pinkyUp) return "APUNTAR ☝️";
+    if (indexUp && !middleUp && !ringUp && pinkyUp) return "ROCK 🤟";
 
     return "—";
   }
@@ -109,7 +106,7 @@ export default function HandTracker() {
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* espejo */
+    // Espejo horizontal
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
@@ -117,13 +114,12 @@ export default function HandTracker() {
 
     let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-      }
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      // Solo usamos la primera mano (máx 1 por configuración)
+      gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
-    /* HUD */
+    // HUD
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, canvas.width, 56);
 
@@ -177,4 +173,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-    }
+                                }
