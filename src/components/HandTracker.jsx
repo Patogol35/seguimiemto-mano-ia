@@ -9,13 +9,7 @@ const drawLandmarks = (ctx, landmarks) => {
   ctx.fillStyle = "#22c55e";
   for (const p of landmarks) {
     ctx.beginPath();
-    ctx.arc(
-      p.x * ctx.canvas.width,
-      p.y * ctx.canvas.height,
-      4,
-      0,
-      Math.PI * 2
-    );
+    ctx.arc(p.x * ctx.canvas.width, p.y * ctx.canvas.height, 4, 0, Math.PI * 2);
     ctx.fill();
   }
 };
@@ -42,7 +36,7 @@ export default function HandTracker() {
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // Corregido: sin espacios
     });
 
     hands.setOptions({
@@ -63,6 +57,10 @@ export default function HandTracker() {
     });
 
     camera.start();
+
+    return () => {
+      camera.stop(); // Limpieza al desmontar
+    };
   }, []);
 
   /* ======================
@@ -71,14 +69,11 @@ export default function HandTracker() {
   const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
   const detectGesture = (l) => {
-    const thumbOpen =
-      dist(l[4], l[5]) > dist(l[3], l[5]) * 1.2;
-
+    const thumbOpen = dist(l[4], l[5]) > dist(l[3], l[5]) * 1.2;
     const index = fingerUp(l, 8, 6);
     const middle = fingerUp(l, 12, 10);
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
-
     const count = [thumbOpen, index, middle, ring, pinky].filter(Boolean).length;
 
     if (count === 0) return "PUÑO ✊";
@@ -113,12 +108,12 @@ export default function HandTracker() {
     }
 
     ctx.fillStyle = "#22c55e";
-    ctx.font = "20px Arial";
+    ctx.font = "18px 'Segoe UI', Arial, sans-serif";
     ctx.fillText(gesture, 16, 28);
   };
 
   /* ======================
-     UI LIMPIA (SIN ZOOM)
+     UI MEJORADA Y RESPONSIVA
   ====================== */
   return (
     <div
@@ -127,40 +122,42 @@ export default function HandTracker() {
         background: "#020617",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
+        justifyContent: "flex-start", // Ajustado: empieza desde arriba
         alignItems: "center",
-        padding: "16px",
+        padding: "24px 16px", // Más control en móvil
         gap: "12px",
+        boxSizing: "border-box",
       }}
     >
-      {/* TÍTULO FUERA DE LA CÁMARA */}
+      {/* TÍTULO */}
       <h2
         style={{
           color: "#22c55e",
-          fontWeight: 500,
-          letterSpacing: "0.6px",
+          fontWeight: 600,
+          letterSpacing: "0.8px",
           margin: 0,
-          fontSize: "18px",
+          fontSize: "20px",
+          textAlign: "center",
         }}
       >
         Hand Gesture Recognition
       </h2>
 
-      {/* CONTENEDOR CÁMARA */}
+      {/* CONTENEDOR CÁMARA - RESPONSIVO */}
       <div
         style={{
           width: "100%",
-          maxWidth: "720px",
+          maxWidth: "640px", // Ajustado para no ser tan ancho
           aspectRatio: "4 / 3",
-          borderRadius: "18px",
+          borderRadius: "16px",
           overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.35)",
-          boxShadow: "0 25px 60px rgba(0,0,0,0.6)",
+          border: "1px solid rgba(34,197,94,0.4)",
+          boxShadow: "0 12px 30px rgba(0,0,0,0.5)",
           background: "#000",
+          position: "relative",
         }}
       >
         <video ref={videoRef} style={{ display: "none" }} />
-
         <canvas
           ref={canvasRef}
           width={640}
@@ -169,6 +166,7 @@ export default function HandTracker() {
             width: "100%",
             height: "100%",
             display: "block",
+            objectFit: "cover",
           }}
         />
       </div>
