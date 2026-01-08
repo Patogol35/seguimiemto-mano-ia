@@ -3,7 +3,7 @@ import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-   DRAW SAFE (Vercel)
+   DRAW SAFE
 ====================== */
 const drawLandmarks = (ctx, landmarks) => {
   ctx.fillStyle = "#22c55e";
@@ -14,7 +14,7 @@ const drawLandmarks = (ctx, landmarks) => {
       p.y * ctx.canvas.height,
       4,
       0,
-      2 * Math.PI
+      Math.PI * 2
     );
     ctx.fill();
   }
@@ -32,6 +32,8 @@ const drawConnectors = (ctx, landmarks, connections) => {
     ctx.stroke();
   }
 };
+
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export default function HandTracker() {
   const videoRef = useRef(null);
@@ -64,54 +66,56 @@ export default function HandTracker() {
   }, []);
 
   /* ======================
-     LÓGICA DE DEDOS
+     GESTOS CORREGIDOS
   ====================== */
-  const fingerExtended = (l, tip, pip) => l[tip].y < l[pip].y;
+
+  const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
   const detectGesture = (l) => {
+    const thumbOpen =
+      dist(l[4], l[5]) > dist(l[3], l[5]) * 1.2;
+
+    const index = fingerUp(l, 8, 6);
+    const middle = fingerUp(l, 12, 10);
+    const ring = fingerUp(l, 16, 14);
+    const pinky = fingerUp(l, 20, 18);
+
     const fingers = {
-      thumb: fingerExtended(l, 4, 3),
-      index: fingerExtended(l, 8, 6),
-      middle: fingerExtended(l, 12, 10),
-      ring: fingerExtended(l, 16, 14),
-      pinky: fingerExtended(l, 20, 18),
+      thumb: thumbOpen,
+      index,
+      middle,
+      ring,
+      pinky,
     };
 
     const count = Object.values(fingers).filter(Boolean).length;
 
-    // PRIORIDADES
+    // 🔥 PRIORIDAD ABSOLUTA
+    if (count === 0) return "PUÑO ✊";
+
     if (
-      fingers.thumb &&
-      !fingers.index &&
-      !fingers.middle &&
-      !fingers.ring &&
-      !fingers.pinky
+      thumbOpen &&
+      !index &&
+      !middle &&
+      !ring &&
+      !pinky
     )
       return "PULGAR ARRIBA 👍";
 
-    if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky)
+    if (index && middle && !ring && !pinky)
       return "PAZ ✌️";
 
-    if (
-      fingers.index &&
-      !fingers.middle &&
-      !fingers.ring &&
-      !fingers.pinky
-    )
+    if (index && !middle && !ring && !pinky)
       return "APUNTAR ☝️";
 
-    if (fingers.index && fingers.pinky && !fingers.middle && !fingers.ring)
+    if (index && pinky && !middle && !ring)
       return "ROCK 🤟";
 
     if (count === 5) return "MANO ABIERTA 🖐️";
-    if (count === 0) return "PUÑO ✊";
 
-    // CLICK
-    const clickDist = Math.hypot(
-      l[4].x - l[8].x,
-      l[4].y - l[8].y
-    );
-    if (clickDist < 0.035) return "CLICK 👌";
+    // CLICK 👌
+    if (dist(l[4], l[8]) < 0.035)
+      return "CLICK 👌";
 
     return `DEDOS: ${count}`;
   };
@@ -119,6 +123,7 @@ export default function HandTracker() {
   /* ======================
      RESULTADOS
   ====================== */
+
   const onResults = (results) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
