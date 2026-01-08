@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
-import { Hands } from "@mediapipe/hands";
+import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
+import {
+  drawConnectors,
+  drawLandmarks,
+} from "@mediapipe/drawing_utils";
 
 export default function HandTracker() {
   const videoRef = useRef(null);
@@ -32,6 +36,36 @@ export default function HandTracker() {
     camera.start();
   }, []);
 
+  const isFist = (landmarks) => {
+    const fingers = [
+      [8, 6],
+      [12, 10],
+      [16, 14],
+      [20, 18],
+    ];
+    return fingers.every(([tip, pip]) => landmarks[tip].y > landmarks[pip].y);
+  };
+
+  const isOpenHand = (landmarks) => {
+    const fingers = [
+      [8, 6],
+      [12, 10],
+      [16, 14],
+      [20, 18],
+    ];
+    return fingers.every(([tip, pip]) => landmarks[tip].y < landmarks[pip].y);
+  };
+
+  const isClick = (landmarks) => {
+    const thumb = landmarks[4];
+    const index = landmarks[8];
+    const distance = Math.hypot(
+      thumb.x - index.x,
+      thumb.y - index.y
+    );
+    return distance < 0.035;
+  };
+
   const onResults = (results) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -39,37 +73,31 @@ export default function HandTracker() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
+    let gesture = "Sin mano";
+
     if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
-        landmarks.forEach((point) => {
-          ctx.beginPath();
-          ctx.arc(
-            point.x * canvas.width,
-            point.y * canvas.height,
-            5,
-            0,
-            2 * Math.PI
-          );
-          ctx.fillStyle = "#22c55e";
-          ctx.fill();
+        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
+          color: "#22c55e",
+          lineWidth: 4,
         });
 
-        detectGesture(landmarks);
+        drawLandmarks(ctx, landmarks, {
+          color: "#22c55e",
+          lineWidth: 2,
+        });
+
+        if (isClick(landmarks)) gesture = "CLICK ✊";
+        else if (isFist(landmarks)) gesture = "PUÑO ✊";
+        else if (isOpenHand(landmarks)) gesture = "MANO ABIERTA 🤚";
+        else gesture = "GESTO INTERMEDIO";
       }
     }
-  };
 
-  const detectGesture = (landmarks) => {
-    const indexTip = landmarks[8];
-    const thumbTip = landmarks[4];
-
-    const distance = Math.abs(indexTip.x - thumbTip.x);
-
-    if (distance < 0.03) {
-      console.log("✊ CLICK");
-    } else {
-      console.log("👉 MOVIENDO");
-    }
+    // Texto en pantalla
+    ctx.fillStyle = "#22c55e";
+    ctx.font = "26px Arial";
+    ctx.fillText(`Gesto: ${gesture}`, 20, 40);
   };
 
   return (
