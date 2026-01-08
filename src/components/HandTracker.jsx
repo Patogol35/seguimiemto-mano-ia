@@ -3,7 +3,7 @@ import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-DRAW
+UTILS DRAW
 ====================== */
 const drawLandmarks = (ctx, landmarks) => {
   ctx.fillStyle = "#22c55e";
@@ -36,6 +36,39 @@ const drawConnectors = (ctx, landmarks, connections) => {
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /* ======================
+GESTOS BASE
+====================== */
+const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
+
+/* Pulgar extendido (horizontal, mano izq / der) */
+const thumbExtended = (l) => {
+  const wrist = l[0];
+  const tip = l[4];
+  const mcp = l[2];
+
+  const isRightHand = tip.x < wrist.x;
+
+  return isRightHand
+    ? tip.x < mcp.x - 0.04
+    : tip.x > mcp.x + 0.04;
+};
+
+/* Pulgar arriba PRO */
+const thumbUp = (l) => {
+  const thumb = thumbExtended(l);
+
+  const index = fingerUp(l, 8, 6);
+  const middle = fingerUp(l, 12, 10);
+  const ring = fingerUp(l, 16, 14);
+  const pinky = fingerUp(l, 20, 18);
+
+  const thumbAway =
+    dist(l[4], l[0]) > dist(l[5], l[0]) * 1.3;
+
+  return thumb && !index && !middle && !ring && !pinky && thumbAway;
+};
+
+/* ======================
 COMPONENTE
 ====================== */
 export default function HandTracker() {
@@ -66,46 +99,43 @@ export default function HandTracker() {
     });
 
     camera.start();
-
     return () => camera.stop();
   }, []);
 
   /* ======================
-  GESTOS
-  ====================== */
-  const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
-
+DETECTAR GESTO
+====================== */
   const detectGesture = (l) => {
     const index = fingerUp(l, 8, 6);
     const middle = fingerUp(l, 12, 10);
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
+    const thumb = thumbExtended(l);
 
-    // ✅ Pulgar corregido (MISMA lógica + control de puño)
-    const thumbOpen =
-      dist(l[4], l[5]) > dist(l[3], l[5]) * 1.2 &&
-      l[4].y < l[2].y; // tip por encima del MCP
-
-    // 👊 PUÑO PRIMERO (CLAVE)
-    if (!thumbOpen && !index && !middle && !ring && !pinky) {
+    // 👊 PUÑO
+    if (!thumb && !index && !middle && !ring && !pinky) {
       return "PUÑO ✊";
     }
 
-    const count = [thumbOpen, index, middle, ring, pinky].filter(Boolean).length;
+    // 👍 PULGAR ARRIBA (MEJORADO)
+    if (thumbUp(l)) return "PULGAR ARRIBA 👍";
 
-    if (thumbOpen && count === 1) return "PULGAR ARRIBA 👍";
+    const count = [thumb, index, middle, ring, pinky].filter(Boolean).length;
+
     if (index && middle && count === 2) return "PAZ ✌️";
     if (index && count === 1) return "APUNTAR ☝️";
     if (index && pinky && count === 2) return "ROCK 🤟";
     if (count === 5) return "MANO ABIERTA 🖐️";
+
+    // 👌 CLICK
     if (dist(l[4], l[8]) < 0.035) return "CLICK 👌";
 
     return `DEDOS: ${count}`;
   };
 
   /* ======================
-  RESULTADOS
-  ====================== */
+RESULTADOS
+====================== */
   const onResults = (results) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -123,7 +153,6 @@ export default function HandTracker() {
       }
     }
 
-    // Texto visible
     ctx.font = "bold 32px Segoe UI, Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -137,8 +166,8 @@ export default function HandTracker() {
   };
 
   /* ======================
-  UI
-  ====================== */
+UI
+====================== */
   return (
     <div
       style={{
@@ -149,18 +178,15 @@ export default function HandTracker() {
         alignItems: "center",
         padding: "16px",
         gap: "12px",
-        boxSizing: "border-box",
       }}
     >
       <h3
         style={{
           color: "#94a3b8",
-          fontWeight: 500,
           fontSize: "14px",
           margin: 0,
-          letterSpacing: "0.4px",
           textAlign: "center",
-          fontFamily: "Segoe UI, Arial, sans-serif",
+          fontFamily: "Segoe UI, Arial",
         }}
       >
         Autor: Jorge Patricio Santamaría Cherrez
@@ -183,7 +209,7 @@ export default function HandTracker() {
           ref={canvasRef}
           width={640}
           height={480}
-          style={{ width: "100%", height: "100%", display: "block" }}
+          style={{ width: "100%", height: "100%" }}
         />
       </div>
     </div>
