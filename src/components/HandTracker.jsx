@@ -19,7 +19,7 @@ export default function HandTracker() {
         padding: "16px",
         gap: "12px",
         boxSizing: "border-box",
-        overflow: "hidden",           // ✔️ evita zoom raro
+        overflow: "visible",           // ✔️ evita zoom raro
       }}
     >
       {/* Video oculto */}
