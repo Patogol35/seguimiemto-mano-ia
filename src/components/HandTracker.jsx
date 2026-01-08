@@ -36,7 +36,7 @@ export default function HandTracker() {
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // Corregido: sin espacios
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -59,7 +59,7 @@ export default function HandTracker() {
     camera.start();
 
     return () => {
-      camera.stop(); // Limpieza al desmontar
+      camera.stop();
     };
   }, []);
 
@@ -107,13 +107,18 @@ export default function HandTracker() {
       }
     }
 
-    ctx.fillStyle = "#22c55e";
-    ctx.font = "18px 'Segoe UI', Arial, sans-serif";
-    ctx.fillText(gesture, 16, 28);
+    // Texto del gesto: más grande, centrado en la parte superior
+    ctx.fillStyle = "#ffffff"; // Blanco brillante para mejor visibilidad
+    ctx.font = "bold 28px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 4;
+    ctx.fillText(gesture, canvas.width / 2, 40); // Centrado horizontalmente
+    ctx.shadowBlur = 0; // Reset shadow para otros dibujos futuros
   };
 
   /* ======================
-     UI MEJORADA Y RESPONSIVA
+     UI LIMPIA Y RESPONSIVA
   ====================== */
   return (
     <div
@@ -122,39 +127,24 @@ export default function HandTracker() {
         background: "#020617",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "flex-start", // Ajustado: empieza desde arriba
+        justifyContent: "flex-start",
         alignItems: "center",
-        padding: "24px 16px", // Más control en móvil
+        padding: "20px 16px",
         gap: "12px",
         boxSizing: "border-box",
       }}
     >
-      {/* TÍTULO */}
-      <h2
-        style={{
-          color: "#22c55e",
-          fontWeight: 600,
-          letterSpacing: "0.8px",
-          margin: 0,
-          fontSize: "20px",
-          textAlign: "center",
-        }}
-      >
-        Hand Gesture Recognition
-      </h2>
-
-      {/* CONTENEDOR CÁMARA - RESPONSIVO */}
+      {/* CONTENEDOR DE CÁMARA */}
       <div
         style={{
           width: "100%",
-          maxWidth: "640px", // Ajustado para no ser tan ancho
+          maxWidth: "640px",
           aspectRatio: "4 / 3",
           borderRadius: "16px",
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.4)",
           boxShadow: "0 12px 30px rgba(0,0,0,0.5)",
           background: "#000",
-          position: "relative",
         }}
       >
         <video ref={videoRef} style={{ display: "none" }} />
@@ -166,10 +156,9 @@ export default function HandTracker() {
             width: "100%",
             height: "100%",
             display: "block",
-            objectFit: "cover",
           }}
         />
       </div>
     </div>
   );
-}
+     }
