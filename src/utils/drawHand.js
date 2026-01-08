@@ -1,4 +1,4 @@
-// utils/drawHand.js
+// src/utils/drawHand.js
 import { HAND_CONNECTIONS } from "@mediapipe/hands";
 
 export const drawLandmarks = (ctx, landmarks) => {
