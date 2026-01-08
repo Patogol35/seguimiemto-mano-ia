@@ -3,7 +3,7 @@ import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-   DRAW SAFE
+   DRAW
 ====================== */
 const drawLandmarks = (ctx, landmarks) => {
   ctx.fillStyle = "#22c55e";
@@ -90,7 +90,7 @@ export default function HandTracker() {
 
     const count = Object.values(fingers).filter(Boolean).length;
 
-    // 🔥 PRIORIDAD ABSOLUTA
+    // PRIORIDADES
     if (count === 0) return "PUÑO ✊";
 
     if (
@@ -113,7 +113,6 @@ export default function HandTracker() {
 
     if (count === 5) return "MANO ABIERTA 🖐️";
 
-    // CLICK 👌
     if (dist(l[4], l[8]) < 0.035)
       return "CLICK 👌";
 
@@ -142,22 +141,58 @@ export default function HandTracker() {
     }
 
     ctx.fillStyle = "#22c55e";
-    ctx.font = "26px Arial";
-    ctx.fillText(`Gesto: ${gesture}`, 20, 40);
+    ctx.font = "22px Arial";
+    ctx.fillText(`Gesto: ${gesture}`, 16, 30);
   };
 
+  /* ======================
+     UI / DISEÑO
+  ====================== */
+
   return (
-    <div style={{ display: "flex", justifyContent: "center" }}>
-      <video ref={videoRef} style={{ display: "none" }} />
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={480}
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #020617, #020617)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <div
         style={{
-          border: "2px solid #22c55e",
-          borderRadius: "12px",
+          background: "rgba(15, 23, 42, 0.85)",
+          padding: "20px",
+          borderRadius: "16px",
+          border: "1px solid rgba(34,197,94,0.25)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
         }}
-      />
+      >
+        <div
+          style={{
+            color: "#e5e7eb",
+            textAlign: "center",
+            marginBottom: "10px",
+            fontSize: "15px",
+            letterSpacing: "0.5px",
+          }}
+        >
+          Hand Gesture Recognition
+        </div>
+
+        <video ref={videoRef} style={{ display: "none" }} />
+
+        <canvas
+          ref={canvasRef}
+          width={420}
+          height={315}
+          style={{
+            borderRadius: "14px",
+            border: "2px solid #22c55e",
+            background: "#020617",
+          }}
+        />
+      </div>
     </div>
   );
 }
