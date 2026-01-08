@@ -54,10 +54,10 @@ const thumbExtended = (l) => {
 };
 
 /* ======================
-PULGAR ARRIBA REAL (ANTI-INCLINACIÓN)
+PULGAR ARRIBA REAL (AJUSTADO)
 ====================== */
 const thumbUp = (l) => {
-  // Vector del pulgar (MCP → TIP)
+  // Vector del pulgar
   let vx = l[4].x - l[2].x;
   let vy = l[4].y - l[2].y;
 
@@ -65,15 +65,14 @@ const thumbUp = (l) => {
   vx /= mag;
   vy /= mag;
 
-  // Otros dedos cerrados
   const index = fingerUp(l, 8, 6);
   const middle = fingerUp(l, 12, 10);
   const ring = fingerUp(l, 16, 14);
   const pinky = fingerUp(l, 20, 18);
 
-  // 🔑 Condiciones clave
-  const pointingUp = vy < -0.8;           // vertical real
-  const notSideways = Math.abs(vx) < 0.35; // bloquea mano inclinada
+  // 🔑 Umbrales humanos (NO perfectos)
+  const pointingUp = vy < -0.55;           // antes -0.8 ❌
+  const notSideways = Math.abs(vx) < 0.6;  // antes 0.35 ❌
 
   return (
     pointingUp &&
@@ -129,12 +128,10 @@ DETECTAR GESTO
     const pinky = fingerUp(l, 20, 18);
     const thumb = thumbExtended(l);
 
-    // 👊 PUÑO
     if (!thumb && !index && !middle && !ring && !pinky) {
       return "PUÑO ✊";
     }
 
-    // 👍 PULGAR ARRIBA (CORREGIDO)
     if (thumbUp(l)) return "PULGAR ARRIBA 👍";
 
     const count = [thumb, index, middle, ring, pinky].filter(Boolean).length;
@@ -144,7 +141,6 @@ DETECTAR GESTO
     if (index && pinky && count === 2) return "ROCK 🤟";
     if (count === 5) return "MANO ABIERTA 🖐️";
 
-    // 👌 CLICK
     if (dist(l[4], l[8]) < 0.035) return "CLICK 👌";
 
     return `DEDOS: ${count}`;
