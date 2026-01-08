@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+  import { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
@@ -50,6 +50,7 @@ export default function HandTracker() {
     detectGesture(lm);
   };
 
+  // 👆 dedo arriba = tip más alto (y menor)
   const isFingerUp = (tip, pip) => tip.y < pip.y;
 
   const detectGesture = (lm) => {
@@ -61,21 +62,41 @@ export default function HandTracker() {
     const fingersUp = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean)
       .length;
 
-    // ✊ PUÑO → todos abajo
-    if (fingersUp === 0) {
+    // 👍 / 👎 pulgar (vertical)
+    const thumbUp = lm[4].y < lm[3].y;
+    const thumbDown = lm[4].y > lm[3].y;
+
+    /* =========================
+       ORDEN IMPORTANTE
+    ========================= */
+
+    // ✌️ PAZ
+    if (indexUp && middleUp && !ringUp && !pinkyUp) {
+      setGesture("✌️ PAZ");
+      return;
+    }
+
+    // 👍 PULGAR ARRIBA (otros dedos cerrados)
+    if (thumbUp && fingersUp === 0) {
+      setGesture("👍 PULGAR ARRIBA");
+      return;
+    }
+
+    // 👎 PULGAR ABAJO (otros dedos cerrados)
+    if (thumbDown && fingersUp === 0) {
+      setGesture("👎 PULGAR ABAJO");
+      return;
+    }
+
+    // ✊ PUÑO
+    if (fingersUp === 0 && !thumbUp && !thumbDown) {
       setGesture("✊ PUÑO");
       return;
     }
 
-    // ✋ MANO ABIERTA → todos arriba
+    // ✋ MANO ABIERTA
     if (fingersUp === 4) {
       setGesture("✋ MANO ABIERTA");
-      return;
-    }
-
-    // ✌️ PAZ → índice y medio arriba, otros abajo
-    if (indexUp && middleUp && !ringUp && !pinkyUp) {
-      setGesture("✌️ PAZ");
       return;
     }
 
