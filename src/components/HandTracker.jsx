@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Hands } from "@mediapipe/hands";
+import { useEffect, useRef } from "react";
+import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
@@ -26,11 +26,19 @@ function fingersClosed(l) {
 }
 
 function isThumbUp(l) {
-  return thumbExtended(l) && l[4].y < l[2].y && fingersClosed(l);
+  return (
+    thumbExtended(l) &&
+    l[4].y < l[2].y &&
+    fingersClosed(l)
+  );
 }
 
 function isThumbDown(l) {
-  return thumbExtended(l) && l[4].y > l[2].y && fingersClosed(l);
+  return (
+    thumbExtended(l) &&
+    l[4].y > l[2].y &&
+    fingersClosed(l)
+  );
 }
 
 function isOK(l) {
@@ -48,45 +56,32 @@ COMPONENTE
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [status, setStatus] = useState("Cargando modelo...");
 
   useEffect(() => {
-    let hands;
-    let camera;
+    const hands = new Hands({
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ Corregido: sin espacios
+    });
 
-    try {
-      hands = new Hands({
-        locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ Corregido
-      });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7,
+    });
 
-      hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.7,
-      });
+    hands.onResults(onResults);
 
-      hands.onResults(onResults);
+    const camera = new Camera(videoRef.current, {
+      onFrame: async () => {
+        await hands.send({ image: videoRef.current });
+      },
+      width: 640,
+      height: 480,
+    });
 
-      camera = new Camera(videoRef.current, {
-        onFrame: async () => {
-          await hands.send({ image: videoRef.current });
-        },
-        width: 640,
-        height: 480,
-      });
-
-      camera.start();
-      setStatus("Listo");
-    } catch (err) {
-      console.error("Error al iniciar MediaPipe:", err);
-      setStatus("⚠️ Error: no se pudo iniciar la cámara o el modelo");
-    }
-
-    return () => {
-      if (camera) camera.stop();
-      if (hands) hands.close();
-    };
+    camera.start();
+    return () => camera.stop();
   }, []);
 
   function detectGesture(l) {
@@ -103,6 +98,7 @@ export default function HandTracker() {
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
     if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
     if (index && pinky && !middle && !ring) return "ROCK 🤟";
+
     return "—";
   }
 
@@ -113,25 +109,27 @@ export default function HandTracker() {
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    /* espejo */
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    let gesture = "✋ Coloca tu mano frente a la cámara";
-    let textColor = "#eab308"; // amarillo suave
+    let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      gesture = detectGesture(results.multiHandLandmarks[0]);
-      textColor = "#22c55e"; // verde
+    if (results.multiHandLandmarks) {
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+      }
     }
 
-    // HUD
+    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, canvas.width, 56);
+
     ctx.font = "bold 28px Segoe UI, Arial";
     ctx.textAlign = "center";
-    ctx.fillStyle = textColor;
+    ctx.fillStyle = "#22c55e";
     ctx.fillText(gesture, canvas.width / 2, 38);
   }
 
@@ -157,19 +155,6 @@ export default function HandTracker() {
         Autor: Jorge Patricio Santamaría Cherrez
       </div>
 
-      {/* Mensaje de estado global (fuera del canvas) */}
-      <div
-        style={{
-          color: status.includes("Error") ? "#ef4444" : "#64748b",
-          fontSize: 14,
-          textAlign: "center",
-          maxWidth: 640,
-          marginBottom: -8,
-        }}
-      >
-        {status}
-      </div>
-
       <div
         style={{
           width: "100%",
@@ -192,4 +177,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-}
+  }
