@@ -3,57 +3,46 @@ import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-UTILS DRAW
+UTILS
 ====================== */
-function drawLandmarks(ctx, l) {
-  ctx.fillStyle = "#22c55e";
-  for (const p of l) {
-    ctx.beginPath();
-    ctx.arc(
-      p.x * ctx.canvas.width,
-      p.y * ctx.canvas.height,
-      4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
-}
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-function drawConnectors(ctx, l, connections) {
-  ctx.strokeStyle = "#22c55e";
-  ctx.lineWidth = 3;
-  for (const [a, b] of connections) {
-    ctx.beginPath();
-    ctx.moveTo(l[a].x * ctx.canvas.width, l[a].y * ctx.canvas.height);
-    ctx.lineTo(l[b].x * ctx.canvas.width, l[b].y * ctx.canvas.height);
-    ctx.stroke();
-  }
-}
-
-/* ======================
-GESTOS BÁSICOS
-====================== */
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
-/* 👍 PULGAR ARRIBA ROBUSTO */
+/* ======================
+GESTOS ROBUSTOS
+====================== */
 function isThumbUp(l) {
-  const thumbTip = l[4];
-  const thumbIP = l[3];
   const wrist = l[0];
 
-  const index = fingerUp(l, 8, 6);
-  const middle = fingerUp(l, 12, 10);
-  const ring = fingerUp(l, 16, 14);
-  const pinky = fingerUp(l, 20, 18);
+  const thumbTip = l[4];
+  const thumbMCP = l[2];
+
+  const indexMCP = l[5];
+
+  // dedos cerrados de verdad
+  const indexClosed = dist(l[8], wrist) < dist(l[5], wrist) * 0.9;
+  const middleClosed = dist(l[12], wrist) < dist(l[9], wrist) * 0.9;
+  const ringClosed = dist(l[16], wrist) < dist(l[13], wrist) * 0.9;
+  const pinkyClosed = dist(l[20], wrist) < dist(l[17], wrist) * 0.9;
+
+  // pulgar extendido
+  const thumbExtended =
+    dist(thumbTip, thumbMCP) >
+    dist(indexMCP, wrist) * 0.6;
+
+  // pulgar vertical (no horizontal)
+  const vertical =
+    Math.abs(thumbTip.y - thumbMCP.y) >
+    Math.abs(thumbTip.x - thumbMCP.x);
 
   return (
-    thumbTip.y < thumbIP.y &&     // pulgar estirado
-    thumbTip.y < wrist.y &&       // pulgar arriba
-    !index &&
-    !middle &&
-    !ring &&
-    !pinky
+    thumbExtended &&
+    vertical &&
+    indexClosed &&
+    middleClosed &&
+    ringClosed &&
+    pinkyClosed
   );
 }
 
@@ -114,7 +103,6 @@ export default function HandTracker() {
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* 📸 EFECTO ESPEJO (CÁMARA BIEN) */
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
@@ -124,13 +112,11 @@ export default function HandTracker() {
 
     if (results.multiHandLandmarks) {
       for (const l of results.multiHandLandmarks) {
-        drawConnectors(ctx, l, HAND_CONNECTIONS);
-        drawLandmarks(ctx, l);
         gesture = detectGesture(l);
       }
     }
 
-    ctx.font = "bold 32px Segoe UI, Arial";
+    ctx.font = "bold 32px Segoe UI";
     ctx.textAlign = "center";
     ctx.lineWidth = 4;
     ctx.strokeStyle = "#000";
@@ -140,40 +126,14 @@ export default function HandTracker() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100svh",
-        background: "#020617",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: 16,
-        gap: 12,
-      }}
-    >
-      <h3 style={{ color: "#94a3b8", fontSize: 14 }}>
-        Autor: Jorge Patricio Santamaría Cherrez
-      </h3>
-
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 640,
-          aspectRatio: "4 / 3",
-          borderRadius: 16,
-          overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.4)",
-          background: "#000",
-        }}
-      >
-        <video ref={videoRef} style={{ display: "none" }} />
-        <canvas
-          ref={canvasRef}
-          width={640}
-          height={480}
-          style={{ width: "100%", height: "100%" }}
-        />
-      </div>
+    <div style={{ background: "#020617", minHeight: "100svh", padding: 16 }}>
+      <canvas
+        ref={canvasRef}
+        width={640}
+        height={480}
+        style={{ width: "100%", maxWidth: 640 }}
+      />
+      <video ref={videoRef} style={{ display: "none" }} />
     </div>
   );
 }
