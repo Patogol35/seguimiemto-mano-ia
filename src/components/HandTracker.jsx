@@ -88,7 +88,7 @@ export default function HandTracker() {
   };
 
   /* ======================
-     RESULTADOS
+     RESULTADOS CON TEXTO SUPER CLARO
   ====================== */
   const onResults = (results) => {
     const canvas = canvasRef.current;
@@ -107,14 +107,31 @@ export default function HandTracker() {
       }
     }
 
-    // Texto del gesto: más grande, centrado en la parte superior
-    ctx.fillStyle = "#ffffff"; // Blanco brillante para mejor visibilidad
-    ctx.font = "bold 28px 'Segoe UI', Arial, sans-serif";
+    // Configuración del texto ultra visible
+    const fontSize = 32;
+    ctx.font = `bold ${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
     ctx.textAlign = "center";
-    ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowBlur = 4;
-    ctx.fillText(gesture, canvas.width / 2, 40); // Centrado horizontalmente
-    ctx.shadowBlur = 0; // Reset shadow para otros dibujos futuros
+    ctx.textBaseline = "middle";
+
+    // Sombra suave (opcional, pero ayuda)
+    ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+
+    // Dibujar borde negro (outline)
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 4;
+    ctx.strokeText(gesture, canvas.width / 2, 48);
+
+    // Dibujar texto blanco encima
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(gesture, canvas.width / 2, 48);
+
+    // Resetear estilos para futuros dibujos
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
   };
 
   /* ======================
@@ -134,7 +151,6 @@ export default function HandTracker() {
         boxSizing: "border-box",
       }}
     >
-      {/* CONTENEDOR DE CÁMARA */}
       <div
         style={{
           width: "100%",
@@ -161,4 +177,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-     }
+       }
