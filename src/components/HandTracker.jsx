@@ -1,83 +1,66 @@
 import { useEffect, useRef } from "react";
-import { Hands } from "@mediapipe/hands";
+import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-// Calcula el ángulo entre tres puntos: a - b - c (en radianes)
-function getAngle(a, b, c) {
-  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-  let angle = Math.abs(radians * (180 / Math.PI));
-  if (angle > 180) angle = 360 - angle;
-  return angle;
+/* ======================
+UTILS
+====================== */
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
+
+/* ======================
+GESTOS ROBUSTOS
+====================== */
+function thumbExtended(l) {
+  return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
 }
 
-// Dedo doblado si el ángulo en PIP es < 100 grados (ajustable)
-function isFingerClosed(landmarks, mcp, pip, dip, tip) {
-  const angle = getAngle(landmarks[mcp], landmarks[pip], landmarks[tip]);
-  return angle < 100; // umbral empírico: funciona bien en pruebas
+function fingersClosed(l) {
+  const w = l[0];
+  return (
+    dist(l[8], w) < dist(l[5], w) * 0.9 &&
+    dist(l[12], w) < dist(l[9], w) * 0.9 &&
+    dist(l[16], w) < dist(l[13], w) * 0.9 &&
+    dist(l[20], w) < dist(l[17], w) * 0.9
+  );
 }
 
-function detectGesture(landmarks) {
-  // Índice: 5 (MCP), 6 (PIP), 7 (DIP), 8 (TIP)
-  const indexClosed = isFingerClosed(landmarks, 5, 6, 7, 8);
-  // Medio: 9, 10, 11, 12
-  const middleClosed = isFingerClosed(landmarks, 9, 10, 11, 12);
-  // Anular: 13, 14, 15, 16
-  const ringClosed = isFingerClosed(landmarks, 13, 14, 15, 16);
-  // Meñique: 17, 18, 19, 20
-  const pinkyClosed = isFingerClosed(landmarks, 17, 18, 19, 20);
-
-  // Pulgar: usamos posición relativa (no ángulo, es más complejo)
-  const thumbTip = landmarks[4];
-  const thumbIp = landmarks[3];
-  const thumbCmc = landmarks[1]; // base del pulgar
-
-  const isThumbUp = thumbTip.y < thumbIp.y && thumbTip.y < landmarks[0].y;
-  const isThumbDown = thumbTip.y > thumbIp.y && thumbTip.y > landmarks[0].y;
-
-  // 👊 Puño: los 4 dedos cerrados
-  if (indexClosed && middleClosed && ringClosed && pinkyClosed) {
-    if (isThumbUp) return "PULGAR ARRIBA 👍";
-    if (isThumbDown) return "PULGAR ABAJO 👎";
-    return "PUÑO ✊";
-  }
-
-  // 🖐️ Mano abierta: todos los dedos abiertos
-  if (!indexClosed && !middleClosed && !ringClosed && !pinkyClosed) {
-    return "MANO ABIERTA 🖐️";
-  }
-
-  // ✌️ Paz: índice y medio abiertos, otros cerrados
-  if (!indexClosed && !middleClosed && ringClosed && pinkyClosed) {
-    return "PAZ ✌️";
-  }
-
-  // ☝️ Apuntar: solo índice abierto
-  if (!indexClosed && middleClosed && ringClosed && pinkyClosed) {
-    return "APUNTAR ☝️";
-  }
-
-  // 🤟 Rock: índice y meñique abiertos
-  if (!indexClosed && middleClosed && ringClosed && !pinkyClosed) {
-    return "ROCK 🤟";
-  }
-
-  // 👌 OK: pulgar cerca del índice Y los otros dedos abiertos
-  const distThumbIndex = Math.hypot(thumbTip.x - landmarks[8].x, thumbTip.y - landmarks[8].y);
-  if (distThumbIndex < 0.08 && !middleClosed && !ringClosed && !pinkyClosed) {
-    return "OK 👌";
-  }
-
-  return "—";
+function isThumbUp(l) {
+  return (
+    thumbExtended(l) &&
+    l[4].y < l[2].y &&
+    fingersClosed(l)
+  );
 }
 
+function isThumbDown(l) {
+  return (
+    thumbExtended(l) &&
+    l[4].y > l[2].y &&
+    fingersClosed(l)
+  );
+}
+
+function isOK(l) {
+  return (
+    dist(l[4], l[8]) < 0.04 &&
+    fingerUp(l, 12, 10) &&
+    fingerUp(l, 16, 14) &&
+    fingerUp(l, 20, 18)
+  );
+}
+
+/* ======================
+COMPONENTE
+====================== */
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const hands = new Hands({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ Corregido: sin espacios
     });
 
     hands.setOptions({
@@ -87,32 +70,7 @@ export default function HandTracker() {
       minTrackingConfidence: 0.7,
     });
 
-    hands.onResults(({ image, multiHandLandmarks }) => {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      ctx.save();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Espejo
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      ctx.restore();
-
-      let gesture = "Sin mano";
-
-      if (multiHandLandmarks?.[0]) {
-        gesture = detectGesture(multiHandLandmarks[0]);
-      }
-
-      // HUD
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillRect(0, 0, canvas.width, 56);
-      ctx.font = "bold 28px Segoe UI, Arial";
-      ctx.textAlign = "center";
-      ctx.fillStyle = "#22c55e";
-      ctx.fillText(gesture, canvas.width / 2, 38);
-    });
+    hands.onResults(onResults);
 
     const camera = new Camera(videoRef.current, {
       onFrame: async () => {
@@ -125,6 +83,55 @@ export default function HandTracker() {
     camera.start();
     return () => camera.stop();
   }, []);
+
+  function detectGesture(l) {
+    const index = fingerUp(l, 8, 6);
+    const middle = fingerUp(l, 12, 10);
+    const ring = fingerUp(l, 16, 14);
+    const pinky = fingerUp(l, 20, 18);
+
+    if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
+    if (isThumbDown(l)) return "PULGAR ABAJO 👎";
+    if (isOK(l)) return "OK 👌";
+    if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
+    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
+    if (index && middle && !ring && !pinky) return "PAZ ✌️";
+    if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
+    if (index && pinky && !middle && !ring) return "ROCK 🤟";
+
+    return "—";
+  }
+
+  function onResults(results) {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    /* espejo */
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    let gesture = "Sin mano";
+
+    if (results.multiHandLandmarks) {
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+      }
+    }
+
+    /* HUD */
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, canvas.width, 56);
+
+    ctx.font = "bold 28px Segoe UI, Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#22c55e";
+    ctx.fillText(gesture, canvas.width / 2, 38);
+  }
 
   return (
     <div
@@ -170,4 +177,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-      }
+}
