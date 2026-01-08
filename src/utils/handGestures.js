@@ -1,20 +1,44 @@
-// utils/handGestures.js
+// src/utils/handGestures.js
 
+/* ======================
+UTILIDADES
+====================== */
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
+/* ======================
+PULGAR (FIX REAL)
+====================== */
 export const isThumbOpen = (l) => {
   const thumbTip = l[4];
   const thumbIP = l[3];
+  const thumbMCP = l[2];
   const indexMCP = l[5];
 
+  // Separación lateral real
   const horizontalDist = Math.abs(thumbTip.x - indexMCP.x);
+
+  // Pulgar extendido
+  const extendedDist = dist(thumbTip, thumbMCP);
+
+  // Evita puño (pulgar doblado)
   const foldedDist = dist(thumbTip, thumbIP);
 
-  return horizontalDist > 0.04 && foldedDist > 0.03;
+  // Pulgar NO debe apuntar hacia la palma
+  const notFoldedDown = thumbTip.y < thumbMCP.y + 0.02;
+
+  return (
+    horizontalDist > 0.045 &&
+    extendedDist > 0.065 &&
+    foldedDist > 0.035 &&
+    notFoldedDown
+  );
 };
 
+/* ======================
+GESTOS
+====================== */
 export const detectGesture = (l) => {
   const thumb = isThumbOpen(l);
   const index = fingerUp(l, 8, 6);
