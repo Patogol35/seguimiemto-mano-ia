@@ -12,21 +12,18 @@ const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 GESTOS
 ====================== */
 
-// OK 👌
+// 👌 OK
 function isOK(l) {
-  const thumbIndexDist = dist(l[4], l[8]);
-  const indexFolded = !fingerUp(l, 8, 6);
-
   return (
-    thumbIndexDist < 0.05 &&
-    indexFolded &&
+    dist(l[4], l[8]) < 0.05 &&
+    !fingerUp(l, 8, 6) &&
     fingerUp(l, 12, 10) &&
     fingerUp(l, 16, 14) &&
     fingerUp(l, 20, 18)
   );
 }
 
-// Pulgar arriba 👍
+// 👍 Pulgar arriba
 function isThumbUp(l) {
   return (
     fingerUp(l, 4, 3) &&
@@ -37,10 +34,9 @@ function isThumbUp(l) {
   );
 }
 
-// Puño cerrado ✊ (ROBUSTO)
+// ✊ Puño cerrado
 function isFist(l) {
-  const w = l[0]; // muñeca
-
+  const w = l[0];
   return (
     dist(l[8], w) < dist(l[5], w) * 0.9 &&
     dist(l[12], w) < dist(l[9], w) * 0.9 &&
@@ -83,9 +79,6 @@ export default function HandTracker() {
     return () => camera.stop();
   }, []);
 
-  /* ======================
-  DETECCIÓN
-  ====================== */
   function detectGesture(l) {
     const index = fingerUp(l, 8, 6);
     const middle = fingerUp(l, 12, 10);
@@ -116,24 +109,15 @@ export default function HandTracker() {
     let gesture = "Sin mano";
 
     if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-      }
+      gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
-    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0, 0, canvas.width, 70);
 
     ctx.textAlign = "center";
     ctx.font = "bold 30px Segoe UI";
-    ctx.fillStyle =
-      gesture === "OK 👌"
-        ? "#facc15"
-        : gesture === "PUÑO ✊"
-        ? "#f87171"
-        : "#22c55e";
-
+    ctx.fillStyle = "#22c55e";
     ctx.fillText(gesture, canvas.width / 2, 45);
   }
 
@@ -146,7 +130,6 @@ export default function HandTracker() {
         flexDirection: "column",
         alignItems: "center",
         padding: 20,
-        gap: 12,
       }}
     >
       <div style={{ color: "#94a3b8", fontSize: 13 }}>
@@ -160,7 +143,6 @@ export default function HandTracker() {
           aspectRatio: "4 / 3",
           borderRadius: 18,
           overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.4)",
           background: "#000",
         }}
       >
