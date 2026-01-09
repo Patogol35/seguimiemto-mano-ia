@@ -11,6 +11,8 @@ const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 /* ======================
 GESTOS
 ====================== */
+
+// OK 👌 estable
 function isOK(l) {
   return (
     dist(l[4], l[8]) < 0.05 &&
@@ -21,6 +23,7 @@ function isOK(l) {
   );
 }
 
+// Pulgar arriba 👍 estable
 function isThumbUp(l) {
   return (
     fingerUp(l, 4, 3) &&
@@ -42,8 +45,8 @@ export default function HandTracker() {
     if (!videoRef.current) return;
 
     const hands = new Hands({
-      locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
     });
 
     hands.setOptions({
@@ -65,14 +68,24 @@ export default function HandTracker() {
 
     camera.start();
 
-    return () => {
-      camera.stop();
-    };
+    return () => camera.stop();
   }, []);
 
+  /* ======================
+  DETECCIÓN
+  ====================== */
   function detectGesture(l) {
+    const index = fingerUp(l, 8, 6);
+    const middle = fingerUp(l, 12, 10);
+    const ring = fingerUp(l, 16, 14);
+    const pinky = fingerUp(l, 20, 18);
+
     if (isOK(l)) return "OK 👌";
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
+    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
+    if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
+    if (index && middle && !ring && !pinky) return "PAZ ✌️";
+
     return "—";
   }
 
@@ -96,31 +109,63 @@ export default function HandTracker() {
       gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
+    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0, 0, canvas.width, 60);
 
-    ctx.fillStyle = "#22c55e";
-    ctx.font = "bold 26px Segoe UI";
     ctx.textAlign = "center";
+    ctx.font = "bold 26px Segoe UI";
+    ctx.fillStyle =
+      gesture === "OK 👌"
+        ? "#facc15"
+        : gesture === "PULGAR ARRIBA 👍"
+        ? "#38bdf8"
+        : "#22c55e";
+
     ctx.fillText(gesture, canvas.width / 2, 40);
   }
 
   return (
-    <div style={{ background: "#000", minHeight: "100vh" }}>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ display: "none" }}
-      />
+    <div
+      style={{
+        minHeight: "100svh",
+        background: "#020617",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: 20,
+        gap: 12,
+      }}
+    >
+      <div style={{ color: "#94a3b8", fontSize: 13 }}>
+        Autor: Jorge Patricio Santamaría Cherrez
+      </div>
 
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={480}
-        style={{ width: "100%" }}
-      />
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 640,
+          aspectRatio: "4 / 3",
+          borderRadius: 18,
+          overflow: "hidden",
+          border: "1px solid rgba(34,197,94,0.4)",
+          background: "#000",
+        }}
+      >
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{ display: "none" }}
+        />
+        <canvas
+          ref={canvasRef}
+          width={640}
+          height={480}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
     </div>
   );
-}
+  }
