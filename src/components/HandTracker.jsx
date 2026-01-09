@@ -9,7 +9,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS ROBUSTOS
+GESTOS
 ====================== */
 function thumbExtended(l) {
   return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
@@ -43,12 +43,18 @@ function isOK(l) {
 }
 
 /* ======================
-CONTEO DE DEDOS (0–5)
+CONTEO CORRECTO (IZQ / DER)
 ====================== */
-function countFingers(l) {
+function countFingers(l, handLabel) {
   let count = 0;
 
-  if (l[4].x < l[3].x) count++;
+  // Pulgar
+  if (handLabel === "Right") {
+    if (l[4].x > l[3].x) count++;
+  } else {
+    if (l[4].x < l[3].x) count++;
+  }
+
   if (fingerUp(l, 8, 6)) count++;
   if (fingerUp(l, 12, 10)) count++;
   if (fingerUp(l, 16, 14)) count++;
@@ -123,54 +129,52 @@ export default function HandTracker() {
     let fingers = 0;
 
     if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-        fingers = countFingers(l);
-      }
+      const l = results.multiHandLandmarks[0];
+      const handLabel =
+        results.multiHandedness?.[0]?.label || "Right";
+
+      gesture = detectGesture(l);
+      fingers = countFingers(l, handLabel);
     }
 
     /* HUD */
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 96);
+    ctx.fillStyle = "rgba(2,6,23,0.75)";
+    ctx.fillRect(0, 0, canvas.width, 88);
 
     ctx.textAlign = "center";
 
-    ctx.font = "bold 30px Segoe UI";
+    ctx.font = "bold 28px Segoe UI";
     ctx.fillStyle = gesture === "OK 👌" ? "#facc15" : "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 38);
+    ctx.fillText(gesture, canvas.width / 2, 34);
 
-    ctx.font = "bold 22px Segoe UI";
+    ctx.font = "bold 20px Segoe UI";
     ctx.fillStyle = "#38bdf8";
-    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 72);
+    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 64);
   }
 
   return (
     <div
       style={{
         height: "100dvh",
-        background: "#020617",
+        background: "radial-gradient(circle at top, #020617, #000)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         paddingInline: 16,
-        gap: 8,
         boxSizing: "border-box",
       }}
     >
-      <div style={{ color: "#94a3b8", fontSize: 12 }}>
-        Autor: Jorge Patricio Santamaría Cherrez
-      </div>
-
       <div
         style={{
           width: "100%",
-          maxWidth: 640,
+          maxWidth: 720,
           aspectRatio: "4 / 3",
-          maxHeight: "75dvh",
-          borderRadius: 18,
+          maxHeight: "80dvh",
+          borderRadius: 22,
           overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.4)",
+          border: "1px solid rgba(34,197,94,0.5)",
+          boxShadow: "0 0 40px rgba(34,197,94,0.15)",
           background: "#000",
         }}
       >
@@ -182,6 +186,18 @@ export default function HandTracker() {
           style={{ width: "100%", height: "100%" }}
         />
       </div>
+
+      <div
+        style={{
+          position: "absolute",
+          bottom: 8,
+          right: 12,
+          fontSize: 11,
+          color: "#64748b",
+        }}
+      >
+        © Jorge Patricio Santamaría Cherrez
+      </div>
     </div>
   );
-    }
+}
