@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
+import { useEffect, useRef, useState } from "react";
+import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
@@ -9,7 +9,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS ROBUSTOS
+PULGAR ROBUSTO
 ====================== */
 function thumbExtended(l) {
   return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
@@ -26,28 +26,30 @@ function fingersClosed(l) {
 }
 
 function isThumbUp(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y < l[2].y &&
-    fingersClosed(l)
-  );
+  const upY = l[4].y < l[2].y - 0.02;
+  const separatedX = Math.abs(l[4].x - l[3].x) > 0.04;
+  return thumbExtended(l) && fingersClosed(l) && (upY || separatedX);
 }
 
 function isThumbDown(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y > l[2].y &&
-    fingersClosed(l)
-  );
+  const downY = l[4].y > l[2].y + 0.02;
+  const separatedX = Math.abs(l[4].x - l[3].x) > 0.04;
+  return thumbExtended(l) && fingersClosed(l) && (downY || separatedX);
 }
 
-function isOK(l) {
-  return (
-    dist(l[4], l[8]) < 0.04 &&
-    fingerUp(l, 12, 10) &&
-    fingerUp(l, 16, 14) &&
-    fingerUp(l, 20, 18)
-  );
+/* ======================
+SUAVIZADO (BUFFER + VOTO)
+====================== */
+function smoothValue(buffer, value, size = 8) {
+  buffer.current.push(value);
+  if (buffer.current.length > size) buffer.current.shift();
+
+  const map = {};
+  buffer.current.forEach((v) => {
+    map[v] = (map[v] || 0) + 1;
+  });
+
+  return Object.entries(map).sort((a, b) => b[1] - a[1])[0][0];
 }
 
 /* ======================
@@ -57,10 +59,16 @@ export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  const fingerBuffer = useRef([]);
+  const handBuffer = useRef([]);
+
+  const [count, setCount] = useState(0);
+  const [handedness, setHandedness] = useState("—");
+
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ Corregido: sin espacios
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -84,87 +92,87 @@ export default function HandTracker() {
     return () => camera.stop();
   }, []);
 
-  function detectGesture(l) {
-    const index = fingerUp(l, 8, 6);
-    const middle = fingerUp(l, 12, 10);
-    const ring = fingerUp(l, 16, 14);
-    const pinky = fingerUp(l, 20, 18);
-
-    if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
-    if (isThumbDown(l)) return "PULGAR ABAJO 👎";
-    if (isOK(l)) return "OK 👌";
-    if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
-    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
-    if (index && middle && !ring && !pinky) return "PAZ ✌️";
-    if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
-    if (index && pinky && !middle && !ring) return "ROCK 🤟";
-
-    return "—";
+  /* ======================
+DETECCIÓN
+====================== */
+  function countFingers(l) {
+    let total = 0;
+    if (fingerUp(l, 8, 6)) total++;
+    if (fingerUp(l, 12, 10)) total++;
+    if (fingerUp(l, 16, 14)) total++;
+    if (fingerUp(l, 20, 18)) total++;
+    if (thumbExtended(l)) total++;
+    return total;
   }
 
   function onResults(results) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     /* espejo */
+    ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    let gesture = "Sin mano";
+    if (results.multiHandLandmarks?.length) {
+      const l = results.multiHandLandmarks[0];
 
-    if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-      }
+      /* MANO IZQ / DER */
+      const rawHand = results.multiHandedness[0].label;
+      const stableHand = smoothValue(handBuffer, rawHand);
+      setHandedness(stableHand === "Left" ? "Izquierda" : "Derecha");
+
+      /* CONTADOR */
+      const rawCount = countFingers(l);
+      const stableCount = smoothValue(fingerBuffer, rawCount);
+      setCount(Number(stableCount));
+    } else {
+      setCount(0);
+      setHandedness("—");
+      fingerBuffer.current = [];
+      handBuffer.current = [];
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, 56);
+    ctx.fillRect(0, 0, canvas.width, 72);
 
-    ctx.font = "bold 28px Segoe UI, Arial";
-    ctx.textAlign = "center";
+    ctx.font = "bold 26px system-ui";
     ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 38);
+    ctx.textAlign = "left";
+    ctx.fillText(`Dedos: ${count}`, 16, 30);
+    ctx.fillText(`Mano: ${handedness}`, 16, 58);
   }
 
   return (
     <div
       style={{
         minHeight: "100svh",
-        background: "linear-gradient(180deg,#020617,#020617)",
+        background: "#020617",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        padding: 20,
-        gap: 12,
+        padding: 16,
+        gap: 10,
       }}
     >
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: 13,
-          letterSpacing: 0.4,
-        }}
-      >
+      <div style={{ color: "#94a3b8", fontSize: 13 }}>
         Autor: Jorge Patricio Santamaría Cherrez
       </div>
 
       <div
         style={{
           width: "100%",
-          maxWidth: 640,
+          maxWidth: 720,
           aspectRatio: "4 / 3",
           borderRadius: 18,
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.4)",
           boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
-          background: "#000",
         }}
       >
         <video ref={videoRef} style={{ display: "none" }} />
@@ -177,4 +185,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-}
+  }
