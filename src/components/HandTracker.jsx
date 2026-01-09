@@ -64,59 +64,44 @@ export default function HandTracker() {
     });
   };
 
+  // Dedo abierto = punta más arriba que articulación
   const fingerOpen = (tip, pip) => tip.y < pip.y;
 
   const detectGesture = (lm) => {
-    const thumbTip = lm[4];
-    const thumbMcp = lm[2];
+    const index = fingerOpen(lm[8], lm[6]);
+    const middle = fingerOpen(lm[12], lm[10]);
+    const ring = fingerOpen(lm[16], lm[14]);
+    const pinky = fingerOpen(lm[20], lm[18]);
 
-    const indexOpen = fingerOpen(lm[8], lm[6]);
-    const middleOpen = fingerOpen(lm[12], lm[10]);
-    const ringOpen = fingerOpen(lm[16], lm[14]);
-    const pinkyOpen = fingerOpen(lm[20], lm[18]);
+    const openCount = [index, middle, ring, pinky].filter(Boolean).length;
 
-    const openFingers = [
-      indexOpen,
-      middleOpen,
-      ringOpen,
-      pinkyOpen,
-    ].filter(Boolean).length;
+    // 👌 OK (índice + pulgar tocándose, otros abiertos)
+    const ok =
+      Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) < 0.04 &&
+      middle &&
+      ring &&
+      pinky;
 
-    // 🤏 PINZA (PRIORIDAD MÁXIMA)
-    const pinch =
-      Math.hypot(lm[8].x - thumbTip.x, lm[8].y - thumbTip.y) < 0.04;
-
-    if (pinch) {
-      setGesture("🤏 PINZA / CLICK");
+    if (ok) {
+      setGesture("👌 OK");
       return;
     }
 
-    // 👍 PULGAR ARRIBA (ESTABLE)
-    const thumbUp = thumbTip.y < thumbMcp.y - 0.05;
-
-    if (
-      thumbUp &&
-      openFingers === 0
-    ) {
-      setGesture("👍 PULGAR ARRIBA");
+    // ✌️ PAZ
+    if (index && middle && !ring && !pinky) {
+      setGesture("✌️ PAZ");
       return;
     }
 
     // ✊ PUÑO
-    if (openFingers === 0) {
+    if (openCount === 0) {
       setGesture("✊ PUÑO");
       return;
     }
 
     // ✋ MANO ABIERTA
-    if (openFingers === 4) {
+    if (openCount === 4) {
       setGesture("✋ MANO ABIERTA");
-      return;
-    }
-
-    // 👉 SEÑALAR
-    if (indexOpen && openFingers === 1) {
-      setGesture("👉 SEÑALANDO");
       return;
     }
 
@@ -162,4 +147,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-}
+        }
