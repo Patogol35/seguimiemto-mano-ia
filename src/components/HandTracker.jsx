@@ -9,35 +9,36 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTO OK ROBUSTO
+GESTO OK 👌 (MEJORADO Y SEGURO)
 ====================== */
 function isOK(l) {
-  const wrist = l[0];
-  const handSize = dist(wrist, l[5]);
   const thumbIndexDist = dist(l[4], l[8]);
+  const indexFolded = !fingerUp(l, 8, 6);
 
   const middleUp = fingerUp(l, 12, 10);
   const ringUp = fingerUp(l, 16, 14);
   const pinkyUp = fingerUp(l, 20, 18);
 
   return (
-    thumbIndexDist < handSize * 0.35 &&
+    thumbIndexDist < 0.05 && // tolerante pero estable
+    indexFolded &&          // evita confundir con ✌️
     middleUp &&
     ringUp &&
     pinkyUp
   );
 }
 
+/* ======================
+COMPONENTE
+====================== */
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    if (!videoRef.current) return;
-
     const hands = new Hands({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -51,22 +52,19 @@ export default function HandTracker() {
 
     const camera = new Camera(videoRef.current, {
       onFrame: async () => {
-        if (videoRef.current) {
-          await hands.send({ image: videoRef.current });
-        }
+        await hands.send({ image: videoRef.current });
       },
       width: 640,
       height: 480,
     });
 
     camera.start();
-
-    return () => {
-      camera.stop();
-      hands.close();
-    };
+    return () => camera.stop();
   }, []);
 
+  /* ======================
+  DETECCIÓN DE GESTOS
+  ====================== */
   function detectGesture(l) {
     const index = fingerUp(l, 8, 6);
     const middle = fingerUp(l, 12, 10);
@@ -83,8 +81,6 @@ export default function HandTracker() {
 
   function onResults(results) {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -97,10 +93,13 @@ export default function HandTracker() {
 
     let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks?.length) {
-      gesture = detectGesture(results.multiHandLandmarks[0]);
+    if (results.multiHandLandmarks) {
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+      }
     }
 
+    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0, 0, canvas.width, 70);
 
@@ -137,12 +136,7 @@ export default function HandTracker() {
           background: "#000",
         }}
       >
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{ display: "none" }}
-        />
+        <video ref={videoRef} style={{ display: "none" }} />
         <canvas
           ref={canvasRef}
           width={640}
