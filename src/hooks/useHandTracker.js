@@ -9,7 +9,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS
+GESTOS ROBUSTOS
 ====================== */
 function thumbExtended(l) {
   return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
@@ -35,7 +35,7 @@ function isThumbDown(l) {
 
 function isOK(l) {
   return (
-    dist(l[4], l[8]) < 0.04 &&
+    dist(l[4], l[8]) < 0.045 && // 🔑 tolerancia correcta
     fingerUp(l, 12, 10) &&
     fingerUp(l, 16, 14) &&
     fingerUp(l, 20, 18)
@@ -44,15 +44,13 @@ function isOK(l) {
 
 /* ======================
 CONTEO DE DEDOS (0–5)
-NO ROMPE GESTOS
 ====================== */
 function countFingers(l) {
   let count = 0;
 
-  // pulgar (horizontal)
+  // pulgar
   if (l[4].x < l[3].x) count++;
 
-  // demás dedos (vertical)
   if (fingerUp(l, 8, 6)) count++;
   if (fingerUp(l, 12, 10)) count++;
   if (fingerUp(l, 16, 14)) count++;
@@ -101,9 +99,10 @@ export default function HandTracker() {
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
 
+    // 🔥 OK VA PRIMERO
+    if (isOK(l)) return "OK 👌";
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
     if (isThumbDown(l)) return "PULGAR ABAJO 👎";
-    if (isOK(l)) return "OK 👌";
     if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
     if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
@@ -134,18 +133,18 @@ export default function HandTracker() {
     }
 
     /* HUD */
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, 90);
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(0, 0, canvas.width, 96);
 
     ctx.textAlign = "center";
 
-    ctx.font = "bold 28px Segoe UI";
-    ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 36);
+    ctx.font = "bold 30px Segoe UI";
+    ctx.fillStyle = gesture === "OK 👌" ? "#facc15" : "#22c55e";
+    ctx.fillText(gesture, canvas.width / 2, 38);
 
     ctx.font = "bold 22px Segoe UI";
     ctx.fillStyle = "#38bdf8";
-    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 68);
+    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 72);
   }
 
   return (
