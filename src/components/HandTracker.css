@@ -1,0 +1,59 @@
+* {
+  box-sizing: border-box;
+}
+
+.app {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  padding: 12px;
+}
+
+.camera-container {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  aspect-ratio: 4 / 3;
+  background: #020617;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 3px solid rgba(34, 197, 94, 0.6);
+  box-shadow: 0 0 40px rgba(34, 197, 94, 0.35);
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+video {
+  display: none;
+}
+
+.gesture-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  background: rgba(2, 6, 23, 0.75);
+  color: #22c55e;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .gesture-badge {
+    font-size: 1rem;
+    padding: 8px 16px;
+  }
+}
