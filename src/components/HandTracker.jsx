@@ -9,20 +9,15 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-CONTEO DE DEDOS (0–5)
+GESTO OK 👌
 ====================== */
-function countFingers(l) {
-  let count = 0;
-
-  // Pulgar (mano izquierda como lo tenías)
-  if (l[4].x < l[3].x) count++;
-
-  if (fingerUp(l, 8, 6)) count++;
-  if (fingerUp(l, 12, 10)) count++;
-  if (fingerUp(l, 16, 14)) count++;
-  if (fingerUp(l, 20, 18)) count++;
-
-  return count;
+function isOK(l) {
+  return (
+    dist(l[4], l[8]) < 0.045 &&
+    fingerUp(l, 12, 10) &&
+    fingerUp(l, 16, 14) &&
+    fingerUp(l, 20, 18)
+  );
 }
 
 /* ======================
@@ -60,7 +55,7 @@ export default function HandTracker() {
   }, []);
 
   /* ======================
-  DETECCIÓN DE GESTOS (3)
+  DETECCIÓN DE GESTOS
   ====================== */
   function detectGesture(l) {
     const index = fingerUp(l, 8, 6);
@@ -68,6 +63,7 @@ export default function HandTracker() {
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
 
+    if (isOK(l)) return "OK 👌";
     if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
     if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
@@ -88,28 +84,21 @@ export default function HandTracker() {
     ctx.restore();
 
     let gesture = "Sin mano";
-    let fingers = 0;
 
     if (results.multiHandLandmarks) {
       for (const l of results.multiHandLandmarks) {
         gesture = detectGesture(l);
-        fingers = countFingers(l);
       }
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 96);
+    ctx.fillRect(0, 0, canvas.width, 70);
 
     ctx.textAlign = "center";
-
     ctx.font = "bold 30px Segoe UI";
-    ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 38);
-
-    ctx.font = "bold 22px Segoe UI";
-    ctx.fillStyle = "#38bdf8";
-    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 72);
+    ctx.fillStyle = gesture === "OK 👌" ? "#facc15" : "#22c55e";
+    ctx.fillText(gesture, canvas.width / 2, 45);
   }
 
   return (
