@@ -43,16 +43,16 @@ function isOK(l) {
 }
 
 /* ======================
-CONTEO DE DEDOS – CORREGIDO PARA AMBAS MANOS
+CONTEO DE DEDOS (0–5)
 ====================== */
-function countFingers(l, handedness) { // ← Añadido 'handedness'
+function countFingers(l, handedness) {
   let count = 0;
 
-  // Pulgar: adaptado a la mano
-  if (handedness === "Left") {
-    if (l[4].x < l[3].x) count++;
+  // ✅ Pulgar correcto para ambas manos
+  if (handedness === "Right") {
+    if (l[4].x > l[3].x) count++;
   } else {
-    if (l[4].x > l[3].x) count++; // ← Esto corrige la mano derecha
+    if (l[4].x < l[3].x) count++;
   }
 
   if (fingerUp(l, 8, 6)) count++;
@@ -73,7 +73,7 @@ export default function HandTracker() {
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ SIN ESPACIOS
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -128,14 +128,14 @@ export default function HandTracker() {
     let gesture = "Sin mano";
     let fingers = 0;
 
-    // ✅ Usar multiHandedness para saber si es Left o Right
-    if (results.multiHandLandmarks && results.multiHandedness) {
-      // Como maxNumHands=1, usamos el primer (y único) resultado
-      const landmarks = results.multiHandLandmarks[0];
-      const handedness = results.multiHandedness[0].label; // "Left" o "Right"
+    if (results.multiHandLandmarks) {
+      results.multiHandLandmarks.forEach((l, i) => {
+        const handedness =
+          results.multiHandedness?.[i]?.label || "Right";
 
-      gesture = detectGesture(landmarks);
-      fingers = countFingers(landmarks, handedness); // ← Pasar handedness
+        gesture = detectGesture(l);
+        fingers = countFingers(l, handedness);
+      });
     }
 
     /* HUD */
