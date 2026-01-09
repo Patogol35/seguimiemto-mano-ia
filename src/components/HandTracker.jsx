@@ -9,38 +9,25 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTO OK 👌 (ESTABLE)
+GESTOS
 ====================== */
 function isOK(l) {
-  const thumbIndexDist = dist(l[4], l[8]);
-  const indexFolded = !fingerUp(l, 8, 6);
-
   return (
-    thumbIndexDist < 0.05 &&
-    indexFolded &&
+    dist(l[4], l[8]) < 0.05 &&
+    !fingerUp(l, 8, 6) &&
     fingerUp(l, 12, 10) &&
     fingerUp(l, 16, 14) &&
     fingerUp(l, 20, 18)
   );
 }
 
-/* ======================
-GESTO 👍 PULGAR ARRIBA (MUY ESTABLE)
-====================== */
 function isThumbUp(l) {
-  const thumbUp = fingerUp(l, 4, 3);
-
-  const indexDown = !fingerUp(l, 8, 6);
-  const middleDown = !fingerUp(l, 12, 10);
-  const ringDown = !fingerUp(l, 16, 14);
-  const pinkyDown = !fingerUp(l, 20, 18);
-
   return (
-    thumbUp &&
-    indexDown &&
-    middleDown &&
-    ringDown &&
-    pinkyDown
+    fingerUp(l, 4, 3) &&
+    !fingerUp(l, 8, 6) &&
+    !fingerUp(l, 12, 10) &&
+    !fingerUp(l, 16, 14) &&
+    !fingerUp(l, 20, 18)
   );
 }
 
@@ -52,6 +39,8 @@ export default function HandTracker() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
+    if (!videoRef.current) return;
+
     const hands = new Hands({
       locateFile: (f) =>
         `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
@@ -67,37 +56,30 @@ export default function HandTracker() {
     hands.onResults(onResults);
 
     const camera = new Camera(videoRef.current, {
+      width: 640,
+      height: 480,
       onFrame: async () => {
         await hands.send({ image: videoRef.current });
       },
-      width: 640,
-      height: 480,
     });
 
     camera.start();
-    return () => camera.stop();
+
+    return () => {
+      camera.stop();
+    };
   }, []);
 
-  /* ======================
-  DETECCIÓN DE GESTOS
-  ====================== */
   function detectGesture(l) {
-    const index = fingerUp(l, 8, 6);
-    const middle = fingerUp(l, 12, 10);
-    const ring = fingerUp(l, 16, 14);
-    const pinky = fingerUp(l, 20, 18);
-
     if (isOK(l)) return "OK 👌";
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
-    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
-    if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
-    if (index && middle && !ring && !pinky) return "PAZ ✌️";
-
     return "—";
   }
 
   function onResults(results) {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -110,63 +92,35 @@ export default function HandTracker() {
 
     let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-      }
+    if (results.multiHandLandmarks?.length) {
+      gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
-    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 70);
+    ctx.fillRect(0, 0, canvas.width, 60);
 
+    ctx.fillStyle = "#22c55e";
+    ctx.font = "bold 26px Segoe UI";
     ctx.textAlign = "center";
-    ctx.font = "bold 30px Segoe UI";
-    ctx.fillStyle =
-      gesture === "OK 👌"
-        ? "#facc15"
-        : gesture === "PULGAR ARRIBA 👍"
-        ? "#38bdf8"
-        : "#22c55e";
-
-    ctx.fillText(gesture, canvas.width / 2, 45);
+    ctx.fillText(gesture, canvas.width / 2, 40);
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100svh",
-        background: "#020617",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: 20,
-        gap: 12,
-      }}
-    >
-      <div style={{ color: "#94a3b8", fontSize: 13 }}>
-        Autor: Jorge Patricio Santamaría Cherrez
-      </div>
+    <div style={{ background: "#000", minHeight: "100vh" }}>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ display: "none" }}
+      />
 
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 640,
-          aspectRatio: "4 / 3",
-          borderRadius: 18,
-          overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.4)",
-          background: "#000",
-        }}
-      >
-        <video ref={videoRef} style={{ display: "none" }} />
-        <canvas
-          ref={canvasRef}
-          width={640}
-          height={480}
-          style={{ width: "100%", height: "100%" }}
-        />
-      </div>
+      <canvas
+        ref={canvasRef}
+        width={640}
+        height={480}
+        style={{ width: "100%" }}
+      />
     </div>
   );
 }
