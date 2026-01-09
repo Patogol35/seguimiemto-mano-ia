@@ -5,32 +5,10 @@ import { Camera } from "@mediapipe/camera_utils";
 /* ======================
 UTILS
 ====================== */
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-CONTEO DE DEDOS (0–5)
-====================== */
-function countFingers(l, handedness) {
-  let count = 0;
-
-  // Pulgar (clave del bug original)
-  if (handedness === "Right") {
-    if (l[4].x > l[3].x) count++;
-  } else {
-    if (l[4].x < l[3].x) count++;
-  }
-
-  if (fingerUp(l, 8, 6)) count++;
-  if (fingerUp(l, 12, 10)) count++;
-  if (fingerUp(l, 16, 14)) count++;
-  if (fingerUp(l, 20, 18)) count++;
-
-  return count;
-}
-
-/* ======================
-GESTOS BÁSICOS
+GESTOS SIMPLES Y ESTABLES
 ====================== */
 function detectGesture(l) {
   const index = fingerUp(l, 8, 6);
@@ -38,11 +16,22 @@ function detectGesture(l) {
   const ring = fingerUp(l, 16, 14);
   const pinky = fingerUp(l, 20, 18);
 
-  if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
-  if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
-  if (index && middle && !ring && !pinky) return "PAZ ✌️";
+  // ✊ Puño
+  if (!index && !middle && !ring && !pinky) {
+    return { name: "PUÑO ✊", fingers: 0 };
+  }
 
-  return "—";
+  // 🖐️ Mano abierta
+  if (index && middle && ring && pinky) {
+    return { name: "MANO ABIERTA 🖐️", fingers: 4 };
+  }
+
+  // ✌️ Paz
+  if (index && middle && !ring && !pinky) {
+    return { name: "PAZ ✌️", fingers: 2 };
+  }
+
+  return { name: "—", fingers: "-" };
 }
 
 /* ======================
@@ -51,16 +40,15 @@ COMPONENTE
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const cameraRef = useRef(null);
   const handsRef = useRef(null);
+  const cameraRef = useRef(null);
 
   useEffect(() => {
     if (!videoRef.current) return;
 
-    /* === Hands === */
     const hands = new Hands({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -70,10 +58,9 @@ export default function HandTracker() {
       minTrackingConfidence: 0.7,
     });
 
-    hands.onResults(handleResults);
+    hands.onResults(onResults);
     handsRef.current = hands;
 
-    /* === Camera === */
     const camera = new Camera(videoRef.current, {
       width: 640,
       height: 480,
@@ -89,14 +76,14 @@ export default function HandTracker() {
     camera.start();
     cameraRef.current = camera;
 
-    /* === CLEANUP (CLAVE PARA QUE NO SE CUELGUE) === */
+    // CLEANUP REAL (clave)
     return () => {
       camera.stop();
       hands.close();
     };
   }, []);
 
-  function handleResults(results) {
+  function onResults(results) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -110,15 +97,14 @@ export default function HandTracker() {
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    let fingers = 0;
     let gesture = "Sin mano";
+    let fingers = "-";
 
-    if (results.multiHandLandmarks && results.multiHandedness) {
+    if (results.multiHandLandmarks?.length) {
       const l = results.multiHandLandmarks[0];
-      const handedness = results.multiHandedness[0].label;
-
-      fingers = countFingers(l, handedness);
-      gesture = detectGesture(l);
+      const g = detectGesture(l);
+      gesture = g.name;
+      fingers = g.fingers;
     }
 
     /* HUD */
@@ -173,4 +159,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-        }
+}
