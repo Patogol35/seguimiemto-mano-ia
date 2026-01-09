@@ -9,14 +9,24 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTO OK 👌
+GESTO OK ROBUSTO
 ====================== */
 function isOK(l) {
+  const wrist = l[0];
+
+  // Tamaño relativo de la mano (escala dinámica)
+  const handSize = dist(wrist, l[5]);
+  const thumbIndexDist = dist(l[4], l[8]);
+
+  const middleUp = fingerUp(l, 12, 10);
+  const ringUp = fingerUp(l, 16, 14);
+  const pinkyUp = fingerUp(l, 20, 18);
+
   return (
-    dist(l[4], l[8]) < 0.045 &&
-    fingerUp(l, 12, 10) &&
-    fingerUp(l, 16, 14) &&
-    fingerUp(l, 20, 18)
+    thumbIndexDist < handSize * 0.35 && // 👈 ajustable (0.30–0.40)
+    middleUp &&
+    ringUp &&
+    pinkyUp
   );
 }
 
@@ -63,7 +73,7 @@ export default function HandTracker() {
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
 
-    if (isOK(l)) return "OK 👌";
+    if (isOK(l)) return "OK 👌"; // 🔥 prioridad absoluta
     if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
     if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
@@ -77,6 +87,7 @@ export default function HandTracker() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // espejo tipo selfie
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
