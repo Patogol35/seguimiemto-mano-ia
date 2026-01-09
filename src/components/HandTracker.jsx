@@ -38,8 +38,15 @@ export default function HandTracker() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
+    // LIMPIAR
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 🪞 MODO ESPEJO
+    ctx.save();
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
 
     if (results.multiHandLandmarks?.length) {
       const landmarks = results.multiHandLandmarks[0];
@@ -75,6 +82,16 @@ export default function HandTracker() {
 
     const openCount = [index, middle, ring, pinky].filter(Boolean).length;
 
+    // 👍 PULGAR ARRIBA
+    const thumbTip = lm[4];
+    const thumbBase = lm[2];
+    const thumbUp = thumbTip.y < thumbBase.y - 0.05;
+
+    if (thumbUp && openCount === 0) {
+      setGesture("👍 PULGAR ARRIBA");
+      return;
+    }
+
     // 👌 OK
     const ok =
       Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) < 0.04 &&
@@ -82,17 +99,28 @@ export default function HandTracker() {
       ring &&
       pinky;
 
-    if (ok) return setGesture("👌 OK");
+    if (ok) {
+      setGesture("👌 OK");
+      return;
+    }
 
     // ✌️ PAZ
-    if (index && middle && !ring && !pinky)
-      return setGesture("✌️ PAZ");
+    if (index && middle && !ring && !pinky) {
+      setGesture("✌️ PAZ");
+      return;
+    }
 
     // ✊ PUÑO
-    if (openCount === 0) return setGesture("✊ PUÑO");
+    if (openCount === 0) {
+      setGesture("✊ PUÑO");
+      return;
+    }
 
     // ✋ MANO ABIERTA
-    if (openCount === 4) return setGesture("✋ MANO ABIERTA");
+    if (openCount === 4) {
+      setGesture("✋ MANO ABIERTA");
+      return;
+    }
 
     setGesture("🤷 GESTO");
   };
