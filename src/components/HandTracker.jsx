@@ -3,10 +3,9 @@ import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* =========================
-   CONFIGURACIÓN
+   CONFIG
 ========================= */
-const STABLE_FRAMES = 6; // frames necesarios para confirmar gesto
-const THUMB_MARGIN = 0.035; // tolerancia pulgar
+const STABLE_FRAMES = 6;
 
 /* =========================
    MAPA GESTO → ACCIÓN
@@ -24,7 +23,7 @@ export default function HandTracker({ onGestureChange }) {
   const canvasRef = useRef(null);
 
   const lastGestureRef = useRef(null);
-  const frameCountRef = useRef(0);
+  const stableCountRef = useRef(0);
 
   const [gesture, setGesture] = useState("Detectando...");
 
@@ -54,6 +53,9 @@ export default function HandTracker({ onGestureChange }) {
     camera.start();
   }, []);
 
+  /* =========================
+     RESULTADOS
+  ========================= */
   const onResults = (results) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -69,38 +71,39 @@ export default function HandTracker({ onGestureChange }) {
     const lm = results.multiHandLandmarks[0];
     drawLandmarks(ctx, lm);
 
-    const detected = detectGesture(lm);
-    updateGesture(detected);
+    const detectedGesture = detectGesture(lm);
+    updateGesture(detectedGesture);
   };
 
   /* =========================
-     SUAVIZADO ANTI PARPADEO
+     SUAVIZADO
   ========================= */
   const updateGesture = (newGesture) => {
     if (newGesture === lastGestureRef.current) {
-      frameCountRef.current++;
+      stableCountRef.current++;
     } else {
       lastGestureRef.current = newGesture;
-      frameCountRef.current = 1;
+      stableCountRef.current = 1;
     }
 
-    if (frameCountRef.current >= STABLE_FRAMES && newGesture !== gesture) {
+    if (
+      stableCountRef.current >= STABLE_FRAMES &&
+      newGesture !== gesture
+    ) {
       setGesture(newGesture);
 
-      // Callback externo
       if (onGestureChange) onGestureChange(newGesture);
-
-      // Acción asociada
-      if (gestureActions[newGesture]) {
-        gestureActions[newGesture]();
-      }
+      if (gestureActions[newGesture]) gestureActions[newGesture]();
     }
   };
 
   /* =========================
-     DETECCIÓN DE GESTOS
+     DETECCIÓN
   ========================= */
   const isFingerUp = (tip, pip) => tip.y < pip.y;
+
+  const distance = (a, b) =>
+    Math.hypot(a.x - b.x, a.y - b.y);
 
   const detectGesture = (lm) => {
     const indexUp = isFingerUp(lm[8], lm[6]);
@@ -111,24 +114,42 @@ export default function HandTracker({ onGestureChange }) {
     const fingersUp = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean)
       .length;
 
-    // 👍 / 👎 pulgar (con tolerancia)
-    const thumbUp = lm[4].y < lm[3].y - THUMB_MARGIN;
-    const thumbDown = lm[4].y > lm[3].y + THUMB_MARGIN;
+    /* ===== PULGAR PROFESIONAL ===== */
+
+    // Pulgar extendido (forma)
+    const thumbExtended = distance(lm[4], lm[2]) > 0.08;
+
+    // Dirección del pulgar (vector)
+    const thumbVectorY = lm[4].y - lm[2].y;
+    const thumbUp = thumbVectorY < -0.04;
+    const thumbDown = thumbVectorY > 0.04;
+
+    /* ===== ORDEN CRÍTICO ===== */
 
     // ✌️ PAZ
-    if (indexUp && middleUp && !ringUp && !pinkyUp) return "✌️ PAZ";
+    if (indexUp && middleUp && !ringUp && !pinkyUp) {
+      return "✌️ PAZ";
+    }
 
     // 👍 PULGAR ARRIBA
-    if (thumbUp && fingersUp === 0) return "👍 PULGAR ARRIBA";
+    if (thumbExtended && thumbUp && fingersUp === 0) {
+      return "👍 PULGAR ARRIBA";
+    }
 
     // 👎 PULGAR ABAJO
-    if (thumbDown && fingersUp === 0) return "👎 PULGAR ABAJO";
+    if (thumbExtended && thumbDown && fingersUp === 0) {
+      return "👎 PULGAR ABAJO";
+    }
 
     // ✊ PUÑO
-    if (fingersUp === 0) return "✊ PUÑO";
+    if (fingersUp === 0 && !thumbExtended) {
+      return "✊ PUÑO";
+    }
 
     // ✋ MANO ABIERTA
-    if (fingersUp === 4) return "✋ MANO ABIERTA";
+    if (fingersUp === 4 && thumbExtended) {
+      return "✋ MANO ABIERTA";
+    }
 
     return "🤔 DESCONOCIDO";
   };
