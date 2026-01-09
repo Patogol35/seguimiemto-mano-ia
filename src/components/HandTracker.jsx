@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
+import "./HandTracker.css";
 
 export default function HandTracker() {
   const videoRef = useRef(null);
@@ -55,7 +56,7 @@ export default function HandTracker() {
       ctx.arc(
         p.x * ctx.canvas.width,
         p.y * ctx.canvas.height,
-        6,
+        5,
         0,
         Math.PI * 2
       );
@@ -64,7 +65,6 @@ export default function HandTracker() {
     });
   };
 
-  // Dedo abierto = punta más arriba que articulación
   const fingerOpen = (tip, pip) => tip.y < pip.y;
 
   const detectGesture = (lm) => {
@@ -75,76 +75,36 @@ export default function HandTracker() {
 
     const openCount = [index, middle, ring, pinky].filter(Boolean).length;
 
-    // 👌 OK (índice + pulgar tocándose, otros abiertos)
+    // 👌 OK
     const ok =
       Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) < 0.04 &&
       middle &&
       ring &&
       pinky;
 
-    if (ok) {
-      setGesture("👌 OK");
-      return;
-    }
+    if (ok) return setGesture("👌 OK");
 
     // ✌️ PAZ
-    if (index && middle && !ring && !pinky) {
-      setGesture("✌️ PAZ");
-      return;
-    }
+    if (index && middle && !ring && !pinky)
+      return setGesture("✌️ PAZ");
 
     // ✊ PUÑO
-    if (openCount === 0) {
-      setGesture("✊ PUÑO");
-      return;
-    }
+    if (openCount === 0) return setGesture("✊ PUÑO");
 
     // ✋ MANO ABIERTA
-    if (openCount === 4) {
-      setGesture("✋ MANO ABIERTA");
-      return;
-    }
+    if (openCount === 4) return setGesture("✋ MANO ABIERTA");
 
-    setGesture("🤷 GESTO NO DEFINIDO");
+    setGesture("🤷 GESTO");
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        marginTop: 30,
-        position: "relative",
-      }}
-    >
-      <video ref={videoRef} style={{ display: "none" }} />
+    <div className="app">
+      <video ref={videoRef} />
 
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={480}
-        style={{
-          borderRadius: 18,
-          border: "4px solid #22c55e",
-          boxShadow: "0 0 30px rgba(34,197,94,.45)",
-        }}
-      />
-
-      <div
-        style={{
-          position: "absolute",
-          bottom: 20,
-          background: "rgba(0,0,0,.65)",
-          color: "#22c55e",
-          padding: "12px 24px",
-          borderRadius: 22,
-          fontSize: 22,
-          fontWeight: "bold",
-          backdropFilter: "blur(8px)",
-        }}
-      >
-        {gesture}
+      <div className="camera-container">
+        <canvas ref={canvasRef} width={640} height={480} />
+        <div className="gesture-badge">{gesture}</div>
       </div>
     </div>
   );
-        }
+}
