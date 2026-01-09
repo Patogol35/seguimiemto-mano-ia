@@ -1,10 +1,31 @@
-  import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-export default function HandTracker() {
+/* =========================
+   CONFIGURACIÓN
+========================= */
+const STABLE_FRAMES = 6; // frames necesarios para confirmar gesto
+const THUMB_MARGIN = 0.035; // tolerancia pulgar
+
+/* =========================
+   MAPA GESTO → ACCIÓN
+========================= */
+const gestureActions = {
+  "✊ PUÑO": () => console.log("Acción: PUÑO"),
+  "✋ MANO ABIERTA": () => console.log("Acción: MANO ABIERTA"),
+  "✌️ PAZ": () => console.log("Acción: PAZ"),
+  "👍 PULGAR ARRIBA": () => console.log("Acción: LIKE"),
+  "👎 PULGAR ABAJO": () => console.log("Acción: DISLIKE"),
+};
+
+export default function HandTracker({ onGestureChange }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+
+  const lastGestureRef = useRef(null);
+  const frameCountRef = useRef(0);
+
   const [gesture, setGesture] = useState("Detectando...");
 
   useEffect(() => {
@@ -41,16 +62,44 @@ export default function HandTracker() {
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
     if (!results.multiHandLandmarks?.length) {
-      setGesture("Sin mano");
+      updateGesture("Sin mano");
       return;
     }
 
     const lm = results.multiHandLandmarks[0];
     drawLandmarks(ctx, lm);
-    detectGesture(lm);
+
+    const detected = detectGesture(lm);
+    updateGesture(detected);
   };
 
-  // 👆 dedo arriba = tip más alto (y menor)
+  /* =========================
+     SUAVIZADO ANTI PARPADEO
+  ========================= */
+  const updateGesture = (newGesture) => {
+    if (newGesture === lastGestureRef.current) {
+      frameCountRef.current++;
+    } else {
+      lastGestureRef.current = newGesture;
+      frameCountRef.current = 1;
+    }
+
+    if (frameCountRef.current >= STABLE_FRAMES && newGesture !== gesture) {
+      setGesture(newGesture);
+
+      // Callback externo
+      if (onGestureChange) onGestureChange(newGesture);
+
+      // Acción asociada
+      if (gestureActions[newGesture]) {
+        gestureActions[newGesture]();
+      }
+    }
+  };
+
+  /* =========================
+     DETECCIÓN DE GESTOS
+  ========================= */
   const isFingerUp = (tip, pip) => tip.y < pip.y;
 
   const detectGesture = (lm) => {
@@ -62,47 +111,31 @@ export default function HandTracker() {
     const fingersUp = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean)
       .length;
 
-    // 👍 / 👎 pulgar (vertical)
-    const thumbUp = lm[4].y < lm[3].y;
-    const thumbDown = lm[4].y > lm[3].y;
-
-    /* =========================
-       ORDEN IMPORTANTE
-    ========================= */
+    // 👍 / 👎 pulgar (con tolerancia)
+    const thumbUp = lm[4].y < lm[3].y - THUMB_MARGIN;
+    const thumbDown = lm[4].y > lm[3].y + THUMB_MARGIN;
 
     // ✌️ PAZ
-    if (indexUp && middleUp && !ringUp && !pinkyUp) {
-      setGesture("✌️ PAZ");
-      return;
-    }
+    if (indexUp && middleUp && !ringUp && !pinkyUp) return "✌️ PAZ";
 
-    // 👍 PULGAR ARRIBA (otros dedos cerrados)
-    if (thumbUp && fingersUp === 0) {
-      setGesture("👍 PULGAR ARRIBA");
-      return;
-    }
+    // 👍 PULGAR ARRIBA
+    if (thumbUp && fingersUp === 0) return "👍 PULGAR ARRIBA";
 
-    // 👎 PULGAR ABAJO (otros dedos cerrados)
-    if (thumbDown && fingersUp === 0) {
-      setGesture("👎 PULGAR ABAJO");
-      return;
-    }
+    // 👎 PULGAR ABAJO
+    if (thumbDown && fingersUp === 0) return "👎 PULGAR ABAJO";
 
     // ✊ PUÑO
-    if (fingersUp === 0 && !thumbUp && !thumbDown) {
-      setGesture("✊ PUÑO");
-      return;
-    }
+    if (fingersUp === 0) return "✊ PUÑO";
 
     // ✋ MANO ABIERTA
-    if (fingersUp === 4) {
-      setGesture("✋ MANO ABIERTA");
-      return;
-    }
+    if (fingersUp === 4) return "✋ MANO ABIERTA";
 
-    setGesture("🤔 DESCONOCIDO");
+    return "🤔 DESCONOCIDO";
   };
 
+  /* =========================
+     DIBUJO
+  ========================= */
   const drawLandmarks = (ctx, lm) => {
     ctx.fillStyle = "#00ffcc";
     lm.forEach((p) => {
