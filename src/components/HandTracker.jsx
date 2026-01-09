@@ -9,8 +9,10 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTO OK 👌 (ESTABLE)
+GESTOS
 ====================== */
+
+// OK 👌
 function isOK(l) {
   const thumbIndexDist = dist(l[4], l[8]);
   const indexFolded = !fingerUp(l, 8, 6);
@@ -24,9 +26,7 @@ function isOK(l) {
   );
 }
 
-/* ======================
-GESTO PULGAR ARRIBA 👍 (SEGURO)
-====================== */
+// Pulgar arriba 👍
 function isThumbUp(l) {
   return (
     fingerUp(l, 4, 3) &&
@@ -34,6 +34,18 @@ function isThumbUp(l) {
     !fingerUp(l, 12, 10) &&
     !fingerUp(l, 16, 14) &&
     !fingerUp(l, 20, 18)
+  );
+}
+
+// Puño cerrado ✊ (ROBUSTO)
+function isFist(l) {
+  const w = l[0]; // muñeca
+
+  return (
+    dist(l[8], w) < dist(l[5], w) * 0.9 &&
+    dist(l[12], w) < dist(l[9], w) * 0.9 &&
+    dist(l[16], w) < dist(l[13], w) * 0.9 &&
+    dist(l[20], w) < dist(l[17], w) * 0.9
   );
 }
 
@@ -72,7 +84,7 @@ export default function HandTracker() {
   }, []);
 
   /* ======================
-  DETECCIÓN DE GESTOS
+  DETECCIÓN
   ====================== */
   function detectGesture(l) {
     const index = fingerUp(l, 8, 6);
@@ -82,8 +94,8 @@ export default function HandTracker() {
 
     if (isOK(l)) return "OK 👌";
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
+    if (isFist(l)) return "PUÑO ✊";
     if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
-    if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
 
     return "—";
@@ -118,8 +130,8 @@ export default function HandTracker() {
     ctx.fillStyle =
       gesture === "OK 👌"
         ? "#facc15"
-        : gesture === "PULGAR ARRIBA 👍"
-        ? "#38bdf8"
+        : gesture === "PUÑO ✊"
+        ? "#f87171"
         : "#22c55e";
 
     ctx.fillText(gesture, canvas.width / 2, 45);
@@ -152,7 +164,6 @@ export default function HandTracker() {
           background: "#000",
         }}
       >
-        {/* NO TOCAR */}
         <video ref={videoRef} style={{ display: "none" }} />
         <canvas
           ref={canvasRef}
