@@ -3,21 +3,18 @@ import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-UTILS
+UTILS (SEGUROS)
 ====================== */
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTO OK 👌 (ESTABLE)
+GESTO OK 👌 (SEGURO)
 ====================== */
 function isOK(l) {
-  const thumbIndexDist = dist(l[4], l[8]);
-  const indexFolded = !fingerUp(l, 8, 6);
-
   return (
-    thumbIndexDist < 0.05 &&
-    indexFolded &&
+    dist(l[4], l[8]) < 0.05 &&
+    !fingerUp(l, 8, 6) &&
     fingerUp(l, 12, 10) &&
     fingerUp(l, 16, 14) &&
     fingerUp(l, 20, 18)
@@ -25,17 +22,18 @@ function isOK(l) {
 }
 
 /* ======================
-GESTO PULGAR ARRIBA 👍 (ROBUSTO)
+GESTO PULGAR ARRIBA 👍 (ULTRA SEGURO)
 ====================== */
 function isThumbUp(l) {
-  const thumbUp = l[4].y < l[3].y && l[3].y < l[2].y;
-  const otherFingersDown =
+  const thumbUp = fingerUp(l, 4, 2);
+
+  const othersDown =
     !fingerUp(l, 8, 6) &&
     !fingerUp(l, 12, 10) &&
     !fingerUp(l, 16, 14) &&
     !fingerUp(l, 20, 18);
 
-  return thumbUp && otherFingersDown;
+  return thumbUp && othersDown;
 }
 
 /* ======================
@@ -105,12 +103,9 @@ export default function HandTracker() {
     let gesture = "Sin mano";
 
     if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-      }
+      gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
-    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0, 0, canvas.width, 70);
 
