@@ -43,14 +43,19 @@ function isOK(l) {
 }
 
 /* ======================
-CONTEO DE DEDOS (0–5)
+CONTEO DE DEDOS (0–5) – CORREGIDO PARA AMBAS MANOS
 ====================== */
-function countFingers(l) {
+function countFingers(l, handedness) {
   let count = 0;
 
-  // pulgar (solo mano izquierda, tal como lo tenías)
-  if (l[4].x < l[3].x) count++;
+  // Pulgar: dirección depende de si es mano izquierda o derecha
+  if (handedness === "Left") {
+    if (l[4].x < l[3].x) count++; // Mano izquierda: pulgar extendido → x disminuye
+  } else {
+    if (l[4].x > l[3].x) count++; // Mano derecha: pulgar extendido → x aumenta
+  }
 
+  // Índice, medio, anular, meñique (misma lógica para ambas manos)
   if (fingerUp(l, 8, 6)) count++;
   if (fingerUp(l, 12, 10)) count++;
   if (fingerUp(l, 16, 14)) count++;
@@ -69,7 +74,7 @@ export default function HandTracker() {
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ sin espacio extra
     });
 
     hands.setOptions({
@@ -90,7 +95,10 @@ export default function HandTracker() {
     });
 
     camera.start();
-    return () => camera.stop();
+
+    return () => {
+      camera.stop();
+    };
   }, []);
 
   function detectGesture(l) {
@@ -115,6 +123,7 @@ export default function HandTracker() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Dibujar video invertido horizontalmente (espejo)
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
@@ -124,14 +133,16 @@ export default function HandTracker() {
     let gesture = "Sin mano";
     let fingers = 0;
 
-    if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-        fingers = countFingers(l);
-      }
+    if (results.multiHandLandmarks && results.multiHandedness) {
+      // Soportamos una sola mano (maxNumHands: 1)
+      const landmarks = results.multiHandLandmarks[0];
+      const handedness = results.multiHandedness[0].label; // "Left" o "Right"
+
+      gesture = detectGesture(landmarks);
+      fingers = countFingers(landmarks, handedness);
     }
 
-    /* HUD */
+    /* HUD: Mostrar gesto y conteo */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0, 0, canvas.width, 96);
 
