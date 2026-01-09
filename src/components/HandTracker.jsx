@@ -9,42 +9,54 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-PULGAR SIMPLE (NO ROMPE)
+GESTOS ROBUSTOS
 ====================== */
-function thumbUp(l) {
-  return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.55;
+function thumbExtended(l) {
+  return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
+}
+
+function fingersClosed(l) {
+  const w = l[0];
+  return (
+    dist(l[8], w) < dist(l[5], w) * 0.9 &&
+    dist(l[12], w) < dist(l[9], w) * 0.9 &&
+    dist(l[16], w) < dist(l[13], w) * 0.9 &&
+    dist(l[20], w) < dist(l[17], w) * 0.9
+  );
+}
+
+function isThumbUp(l) {
+  return thumbExtended(l) && l[4].y < l[2].y && fingersClosed(l);
+}
+
+function isThumbDown(l) {
+  return thumbExtended(l) && l[4].y > l[2].y && fingersClosed(l);
+}
+
+function isOK(l) {
+  return (
+    dist(l[4], l[8]) < 0.045 && // 🔑 tolerancia correcta
+    fingerUp(l, 12, 10) &&
+    fingerUp(l, 16, 14) &&
+    fingerUp(l, 20, 18)
+  );
 }
 
 /* ======================
-CONTAR DEDOS (0–5)
+CONTEO DE DEDOS (0–5)
 ====================== */
 function countFingers(l) {
-  let c = 0;
-  if (thumbUp(l)) c++;
-  if (fingerUp(l, 8, 6)) c++;
-  if (fingerUp(l, 12, 10)) c++;
-  if (fingerUp(l, 16, 14)) c++;
-  if (fingerUp(l, 20, 18)) c++;
-  return c;
-}
+  let count = 0;
 
-/* ======================
-GESTOS CLÁSICOS
-====================== */
-function detectGesture(l) {
-  const index = fingerUp(l, 8, 6);
-  const middle = fingerUp(l, 12, 10);
-  const ring = fingerUp(l, 16, 14);
-  const pinky = fingerUp(l, 20, 18);
-  const thumb = thumbUp(l);
+  // pulgar
+  if (l[4].x < l[3].x) count++;
 
-  if (!index && !middle && !ring && !pinky && !thumb) return "PUÑO ✊";
-  if (index && middle && ring && pinky && thumb) return "MANO ABIERTA 🖐️";
-  if (index && middle && !ring && !pinky) return "PAZ ✌️";
-  if (thumb && !index && !middle && !ring && !pinky) return "PULGAR 👍";
-  if (thumb && index && !middle && !ring && !pinky) return "OK 👌";
+  if (fingerUp(l, 8, 6)) count++;
+  if (fingerUp(l, 12, 10)) count++;
+  if (fingerUp(l, 16, 14)) count++;
+  if (fingerUp(l, 20, 18)) count++;
 
-  return "—";
+  return count;
 }
 
 /* ======================
@@ -55,11 +67,6 @@ export default function HandTracker() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    const video = videoRef.current;
-    video.setAttribute("playsinline", "");
-    video.muted = true;
-    video.autoplay = true;
-
     const hands = new Hands({
       locateFile: (f) =>
         `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
@@ -74,9 +81,9 @@ export default function HandTracker() {
 
     hands.onResults(onResults);
 
-    const camera = new Camera(video, {
+    const camera = new Camera(videoRef.current, {
       onFrame: async () => {
-        await hands.send({ image: video });
+        await hands.send({ image: videoRef.current });
       },
       width: 640,
       height: 480,
@@ -85,6 +92,23 @@ export default function HandTracker() {
     camera.start();
     return () => camera.stop();
   }, []);
+
+  function detectGesture(l) {
+    const index = fingerUp(l, 8, 6);
+    const middle = fingerUp(l, 12, 10);
+    const ring = fingerUp(l, 16, 14);
+    const pinky = fingerUp(l, 20, 18);
+
+    // 🔥 OK VA PRIMERO
+    if (isOK(l)) return "OK 👌";
+    if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
+    if (isThumbDown(l)) return "PULGAR ABAJO 👎";
+    if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
+    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
+    if (index && middle && !ring && !pinky) return "PAZ ✌️";
+
+    return "—";
+  }
 
   function onResults(results) {
     const canvas = canvasRef.current;
@@ -98,24 +122,29 @@ export default function HandTracker() {
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    let fingers = 0;
     let gesture = "Sin mano";
+    let fingers = 0;
 
-    if (results.multiHandLandmarks?.length) {
-      const l = results.multiHandLandmarks[0];
-      fingers = countFingers(l);
-      gesture = detectGesture(l);
+    if (results.multiHandLandmarks) {
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+        fingers = countFingers(l);
+      }
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 70);
+    ctx.fillRect(0, 0, canvas.width, 96);
 
-    ctx.fillStyle = "#22c55e";
-    ctx.font = "bold 28px system-ui";
     ctx.textAlign = "center";
-    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 30);
-    ctx.fillText(gesture, canvas.width / 2, 58);
+
+    ctx.font = "bold 30px Segoe UI";
+    ctx.fillStyle = gesture === "OK 👌" ? "#facc15" : "#22c55e";
+    ctx.fillText(gesture, canvas.width / 2, 38);
+
+    ctx.font = "bold 22px Segoe UI";
+    ctx.fillStyle = "#38bdf8";
+    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 72);
   }
 
   return (
@@ -126,9 +155,14 @@ export default function HandTracker() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        padding: 16,
+        padding: 20,
+        gap: 12,
       }}
     >
+      <div style={{ color: "#94a3b8", fontSize: 13 }}>
+        Autor: Jorge Patricio Santamaría Cherrez
+      </div>
+
       <div
         style={{
           width: "100%",
