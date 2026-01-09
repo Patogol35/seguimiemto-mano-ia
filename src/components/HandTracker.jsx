@@ -1,43 +1,73 @@
-import { useEffect, useRef, useState } from "react";
-import { Hands } from "@mediapipe/hands";
+import { useEffect, useRef } from "react";
+import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-/* =========================
-   CONFIG
-========================= */
-const STABLE_FRAMES = 6;
+/* ======================
+UTILS
+====================== */
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
-/* =========================
-   ACCIONES
-========================= */
-const gestureActions = {
-  "👍 PULGAR ARRIBA": () => console.log("LIKE"),
-  "👎 PULGAR ABAJO": () => console.log("DISLIKE"),
-  "✌️ PAZ": () => console.log("PAZ"),
-  "✋ MANO ABIERTA": () => console.log("OPEN"),
-  "✊ PUÑO": () => console.log("FIST"),
-};
+/* ======================
+GESTOS ROBUSTOS
+====================== */
+function thumbExtended(l) {
+  return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
+}
 
-export default function HandTracker({ onGestureChange }) {
+function fingersClosed(l) {
+  const w = l[0];
+  return (
+    dist(l[8], w) < dist(l[5], w) * 0.9 &&
+    dist(l[12], w) < dist(l[9], w) * 0.9 &&
+    dist(l[16], w) < dist(l[13], w) * 0.9 &&
+    dist(l[20], w) < dist(l[17], w) * 0.9
+  );
+}
+
+function isThumbUp(l) {
+  return (
+    thumbExtended(l) &&
+    l[4].y < l[2].y &&
+    fingersClosed(l)
+  );
+}
+
+function isThumbDown(l) {
+  return (
+    thumbExtended(l) &&
+    l[4].y > l[2].y &&
+    fingersClosed(l)
+  );
+}
+
+function isOK(l) {
+  return (
+    dist(l[4], l[8]) < 0.04 &&
+    fingerUp(l, 12, 10) &&
+    fingerUp(l, 16, 14) &&
+    fingerUp(l, 20, 18)
+  );
+}
+
+/* ======================
+COMPONENTE
+====================== */
+export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-
-  const lastGesture = useRef(null);
-  const stableCount = useRef(0);
-
-  const [gesture, setGesture] = useState("Detectando...");
 
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ Corregido: sin espacios
     });
 
     hands.setOptions({
       maxNumHands: 1,
       modelComplexity: 1,
-      minDetectionConfidence: 0.75,
-      minTrackingConfidence: 0.75,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7,
     });
 
     hands.onResults(onResults);
@@ -46,169 +76,105 @@ export default function HandTracker({ onGestureChange }) {
       onFrame: async () => {
         await hands.send({ image: videoRef.current });
       },
+      width: 640,
+      height: 480,
     });
 
     camera.start();
+    return () => camera.stop();
   }, []);
 
-  /* =========================
-     RESULTADOS
-  ========================= */
-  const onResults = (results) => {
+  function detectGesture(l) {
+    const index = fingerUp(l, 8, 6);
+    const middle = fingerUp(l, 12, 10);
+    const ring = fingerUp(l, 16, 14);
+    const pinky = fingerUp(l, 20, 18);
+
+    if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
+    if (isThumbDown(l)) return "PULGAR ABAJO 👎";
+    if (isOK(l)) return "OK 👌";
+    if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
+    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
+    if (index && middle && !ring && !pinky) return "PAZ ✌️";
+    if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
+    if (index && pinky && !middle && !ring) return "ROCK 🤟";
+
+    return "—";
+  }
+
+  function onResults(results) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    resizeCanvas(canvas);
-
+    ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    /* espejo */
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
 
-    if (!results.multiHandLandmarks?.length) {
-      updateGesture("Sin mano");
-      return;
+    let gesture = "Sin mano";
+
+    if (results.multiHandLandmarks) {
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+      }
     }
 
-    const lm = results.multiHandLandmarks[0];
-    drawLandmarks(ctx, lm);
+    /* HUD */
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, canvas.width, 56);
 
-    const g = detectGesture(lm);
-    updateGesture(g);
-  };
+    ctx.font = "bold 28px Segoe UI, Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#22c55e";
+    ctx.fillText(gesture, canvas.width / 2, 38);
+  }
 
-  /* =========================
-     SUAVIZADO
-  ========================= */
-  const updateGesture = (g) => {
-    if (g === lastGesture.current) {
-      stableCount.current++;
-    } else {
-      lastGesture.current = g;
-      stableCount.current = 1;
-    }
-
-    if (stableCount.current >= STABLE_FRAMES && g !== gesture) {
-      setGesture(g);
-      onGestureChange?.(g);
-      gestureActions[g]?.();
-    }
-  };
-
-  /* =========================
-     UTILIDADES
-  ========================= */
-  const isFingerUp = (tip, pip) => tip.y < pip.y;
-
-  const dist = (a, b) =>
-    Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-
-  /* =========================
-     DETECCIÓN FINAL (PRO)
-  ========================= */
-  const detectGesture = (lm) => {
-    const indexUp = isFingerUp(lm[8], lm[6]);
-    const middleUp = isFingerUp(lm[12], lm[10]);
-    const ringUp = isFingerUp(lm[16], lm[14]);
-    const pinkyUp = isFingerUp(lm[20], lm[18]);
-
-    const fingersUp = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean)
-      .length;
-
-    /* ===== PULGAR ===== */
-
-    // Pulgar extendido (forma)
-    const thumbExtended = dist(lm[4], lm[2]) > 0.085;
-
-    // Dirección pulgar
-    const thumbUpY = lm[4].y < lm[2].y - 0.02;
-    const thumbUpZ = lm[4].z < lm[2].z - 0.02; // 👉 de frente a cámara
-    const thumbDownY = lm[4].y > lm[2].y + 0.02;
-
-    /* ===== ORDEN CLAVE ===== */
-
-    // ✌️ PAZ
-    if (indexUp && middleUp && !ringUp && !pinkyUp) return "✌️ PAZ";
-
-    // 👍 PULGAR ARRIBA (Y o Z)
-    if (thumbExtended && fingersUp === 0 && (thumbUpY || thumbUpZ))
-      return "👍 PULGAR ARRIBA";
-
-    // 👎 PULGAR ABAJO
-    if (thumbExtended && fingersUp === 0 && thumbDownY)
-      return "👎 PULGAR ABAJO";
-
-    // ✋ MANO ABIERTA
-    if (fingersUp === 4 && thumbExtended) return "✋ MANO ABIERTA";
-
-    // ✊ PUÑO
-    if (fingersUp === 0 && !thumbExtended) return "✊ PUÑO";
-
-    return "🤔 DESCONOCIDO";
-  };
-
-  /* =========================
-     CANVAS RESPONSIVE
-  ========================= */
-  const resizeCanvas = (canvas) => {
-    const parent = canvas.parentElement;
-    const w = Math.min(parent.offsetWidth, 420);
-    canvas.width = w;
-    canvas.height = w * 0.75;
-  };
-
-  const drawLandmarks = (ctx, lm) => {
-    ctx.fillStyle = "#22d3ee";
-    lm.forEach((p) => {
-      ctx.beginPath();
-      ctx.arc(
-        p.x * ctx.canvas.width,
-        p.y * ctx.canvas.height,
-        4,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
-    });
-  };
-
-  /* =========================
-     UI
-  ========================= */
   return (
-    <div style={styles.wrapper}>
-      <video ref={videoRef} style={{ display: "none" }} />
-      <div style={styles.card}>
-        <canvas ref={canvasRef} />
-        <div style={styles.gesture}>{gesture}</div>
+    <div
+      style={{
+        minHeight: "100svh",
+        background: "linear-gradient(180deg,#020617,#020617)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: 20,
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          color: "#94a3b8",
+          fontSize: 13,
+          letterSpacing: 0.4,
+        }}
+      >
+        Autor: Jorge Patricio Santamaría Cherrez
+      </div>
+
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 640,
+          aspectRatio: "4 / 3",
+          borderRadius: 18,
+          overflow: "hidden",
+          border: "1px solid rgba(34,197,94,0.4)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+          background: "#000",
+        }}
+      >
+        <video ref={videoRef} style={{ display: "none" }} />
+        <canvas
+          ref={canvasRef}
+          width={640}
+          height={480}
+          style={{ width: "100%", height: "100%" }}
+        />
       </div>
     </div>
   );
 }
-
-/* =========================
-   ESTILOS
-========================= */
-const styles = {
-  wrapper: {
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "#020617",
-    padding: 16,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 440,
-    background: "#020617",
-    borderRadius: 16,
-    boxShadow: "0 0 40px rgba(34,211,238,.25)",
-    padding: 12,
-    textAlign: "center",
-  },
-  gesture: {
-    marginTop: 12,
-    fontSize: "1.3rem",
-    fontWeight: 600,
-    color: "#e5e7eb",
-  },
-};
