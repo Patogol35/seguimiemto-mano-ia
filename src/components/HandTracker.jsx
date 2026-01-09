@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
@@ -9,43 +9,42 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-PULGAR (ROBUSTO)
+PULGAR SIMPLE (NO ROMPE)
 ====================== */
 function thumbUp(l) {
-  const extended = dist(l[4], l[2]) > dist(l[5], l[0]) * 0.55;
-  const up = l[4].y < l[2].y - 0.02;
-  const side = Math.abs(l[4].x - l[3].x) > 0.04;
-  return extended && (up || side);
+  return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.55;
 }
 
 /* ======================
-CONTADOR DE DEDOS REAL
+CONTAR DEDOS (0–5)
 ====================== */
 function countFingers(l) {
-  let count = 0;
-
-  if (thumbUp(l)) count++;
-  if (fingerUp(l, 8, 6)) count++;
-  if (fingerUp(l, 12, 10)) count++;
-  if (fingerUp(l, 16, 14)) count++;
-  if (fingerUp(l, 20, 18)) count++;
-
-  return count;
+  let c = 0;
+  if (thumbUp(l)) c++;
+  if (fingerUp(l, 8, 6)) c++;
+  if (fingerUp(l, 12, 10)) c++;
+  if (fingerUp(l, 16, 14)) c++;
+  if (fingerUp(l, 20, 18)) c++;
+  return c;
 }
 
 /* ======================
-SUAVIZADO (VOTO)
+GESTOS CLÁSICOS
 ====================== */
-function smooth(buffer, value, size = 6) {
-  buffer.current.push(value);
-  if (buffer.current.length > size) buffer.current.shift();
+function detectGesture(l) {
+  const index = fingerUp(l, 8, 6);
+  const middle = fingerUp(l, 12, 10);
+  const ring = fingerUp(l, 16, 14);
+  const pinky = fingerUp(l, 20, 18);
+  const thumb = thumbUp(l);
 
-  const freq = {};
-  buffer.current.forEach((v) => (freq[v] = (freq[v] || 0) + 1));
+  if (!index && !middle && !ring && !pinky && !thumb) return "PUÑO ✊";
+  if (index && middle && ring && pinky && thumb) return "MANO ABIERTA 🖐️";
+  if (index && middle && !ring && !pinky) return "PAZ ✌️";
+  if (thumb && !index && !middle && !ring && !pinky) return "PULGAR 👍";
+  if (thumb && index && !middle && !ring && !pinky) return "OK 👌";
 
-  return Number(
-    Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
-  );
+  return "—";
 }
 
 /* ======================
@@ -55,15 +54,8 @@ export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  const fingerBuffer = useRef([]);
-  const handBuffer = useRef([]);
-
-  const [count, setCount] = useState(0);
-  const [hand, setHand] = useState("—");
-
   useEffect(() => {
     const video = videoRef.current;
-
     video.setAttribute("playsinline", "");
     video.muted = true;
     video.autoplay = true;
@@ -100,40 +92,30 @@ export default function HandTracker() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* espejo */
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
+    let fingers = 0;
+    let gesture = "Sin mano";
+
     if (results.multiHandLandmarks?.length) {
       const l = results.multiHandLandmarks[0];
-
-      /* MANO */
-      const rawHand = results.multiHandedness[0].label;
-      const stableHand = smooth(handBuffer, rawHand);
-      setHand(stableHand === "Left" ? "Izquierda" : "Derecha");
-
-      /* DEDOS */
-      const rawCount = countFingers(l);
-      const stableCount = smooth(fingerBuffer, rawCount);
-      setCount(stableCount);
-    } else {
-      setCount(0);
-      setHand("—");
-      fingerBuffer.current = [];
-      handBuffer.current = [];
+      fingers = countFingers(l);
+      gesture = detectGesture(l);
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 60);
+    ctx.fillRect(0, 0, canvas.width, 70);
 
     ctx.fillStyle = "#22c55e";
-    ctx.font = "bold 26px system-ui";
-    ctx.fillText(`Dedos: ${count}`, 16, 30);
-    ctx.fillText(`Mano: ${hand}`, 16, 54);
+    ctx.font = "bold 28px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 30);
+    ctx.fillText(gesture, canvas.width / 2, 58);
   }
 
   return (
@@ -145,26 +127,20 @@ export default function HandTracker() {
         flexDirection: "column",
         alignItems: "center",
         padding: 16,
-        gap: 12,
       }}
     >
-      <div style={{ color: "#94a3b8", fontSize: 13 }}>
-        Autor: Jorge Patricio Santamaría Cherrez
-      </div>
-
       <div
         style={{
           width: "100%",
-          maxWidth: 720,
+          maxWidth: 640,
           aspectRatio: "4 / 3",
           borderRadius: 18,
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.4)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
           background: "#000",
         }}
       >
-        <video ref={videoRef} />
+        <video ref={videoRef} style={{ display: "none" }} />
         <canvas
           ref={canvasRef}
           width={640}
@@ -174,4 +150,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-    }
+                  }
