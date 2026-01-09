@@ -3,18 +3,21 @@ import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
-UTILS (SEGUROS)
+UTILS
 ====================== */
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTO OK 👌 (SEGURO)
+GESTO OK 👌 (ESTABLE)
 ====================== */
 function isOK(l) {
+  const thumbIndexDist = dist(l[4], l[8]);
+  const indexFolded = !fingerUp(l, 8, 6);
+
   return (
-    dist(l[4], l[8]) < 0.05 &&
-    !fingerUp(l, 8, 6) &&
+    thumbIndexDist < 0.05 &&
+    indexFolded &&
     fingerUp(l, 12, 10) &&
     fingerUp(l, 16, 14) &&
     fingerUp(l, 20, 18)
@@ -22,18 +25,23 @@ function isOK(l) {
 }
 
 /* ======================
-GESTO PULGAR ARRIBA 👍 (ULTRA SEGURO)
+GESTO 👍 PULGAR ARRIBA (MUY ESTABLE)
 ====================== */
 function isThumbUp(l) {
-  const thumbUp = fingerUp(l, 4, 2);
+  const thumbUp = fingerUp(l, 4, 3);
 
-  const othersDown =
-    !fingerUp(l, 8, 6) &&
-    !fingerUp(l, 12, 10) &&
-    !fingerUp(l, 16, 14) &&
-    !fingerUp(l, 20, 18);
+  const indexDown = !fingerUp(l, 8, 6);
+  const middleDown = !fingerUp(l, 12, 10);
+  const ringDown = !fingerUp(l, 16, 14);
+  const pinkyDown = !fingerUp(l, 20, 18);
 
-  return thumbUp && othersDown;
+  return (
+    thumbUp &&
+    indexDown &&
+    middleDown &&
+    ringDown &&
+    pinkyDown
+  );
 }
 
 /* ======================
@@ -103,9 +111,12 @@ export default function HandTracker() {
     let gesture = "Sin mano";
 
     if (results.multiHandLandmarks) {
-      gesture = detectGesture(results.multiHandLandmarks[0]);
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+      }
     }
 
+    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0, 0, canvas.width, 70);
 
@@ -115,7 +126,7 @@ export default function HandTracker() {
       gesture === "OK 👌"
         ? "#facc15"
         : gesture === "PULGAR ARRIBA 👍"
-        ? "#4ade80"
+        ? "#38bdf8"
         : "#22c55e";
 
     ctx.fillText(gesture, canvas.width / 2, 45);
