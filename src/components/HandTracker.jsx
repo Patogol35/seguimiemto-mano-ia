@@ -43,19 +43,18 @@ function isOK(l) {
 }
 
 /* ======================
-CONTEO DE DEDOS (0–5) – CORREGIDO PARA AMBAS MANOS
+CONTEO DE DEDOS – CORREGIDO PARA AMBAS MANOS
 ====================== */
-function countFingers(l, handedness) {
+function countFingers(l, handedness) { // ← Añadido 'handedness'
   let count = 0;
 
-  // Pulgar: dirección depende de si es mano izquierda o derecha
+  // Pulgar: adaptado a la mano
   if (handedness === "Left") {
-    if (l[4].x < l[3].x) count++; // Mano izquierda: pulgar extendido → x disminuye
+    if (l[4].x < l[3].x) count++;
   } else {
-    if (l[4].x > l[3].x) count++; // Mano derecha: pulgar extendido → x aumenta
+    if (l[4].x > l[3].x) count++; // ← Esto corrige la mano derecha
   }
 
-  // Índice, medio, anular, meñique
   if (fingerUp(l, 8, 6)) count++;
   if (fingerUp(l, 12, 10)) count++;
   if (fingerUp(l, 16, 14)) count++;
@@ -73,7 +72,8 @@ export default function HandTracker() {
 
   useEffect(() => {
     const hands = new Hands({
-      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ SIN ESPACIO
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ SIN ESPACIOS
     });
 
     hands.setOptions({
@@ -85,22 +85,16 @@ export default function HandTracker() {
 
     hands.onResults(onResults);
 
-    // Solo iniciar si los elementos existen
-    if (videoRef.current && canvasRef.current) {
-      const camera = new Camera(videoRef.current, {
-        onFrame: async () => {
-          await hands.send({ image: videoRef.current });
-        },
-        width: 640,
-        height: 480,
-      });
+    const camera = new Camera(videoRef.current, {
+      onFrame: async () => {
+        await hands.send({ image: videoRef.current });
+      },
+      width: 640,
+      height: 480,
+    });
 
-      camera.start();
-
-      return () => {
-        camera.stop();
-      };
-    }
+    camera.start();
+    return () => camera.stop();
   }, []);
 
   function detectGesture(l) {
@@ -121,12 +115,10 @@ export default function HandTracker() {
 
   function onResults(results) {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Mostrar video en espejo
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
@@ -136,12 +128,14 @@ export default function HandTracker() {
     let gesture = "Sin mano";
     let fingers = 0;
 
+    // ✅ Usar multiHandedness para saber si es Left o Right
     if (results.multiHandLandmarks && results.multiHandedness) {
+      // Como maxNumHands=1, usamos el primer (y único) resultado
       const landmarks = results.multiHandLandmarks[0];
       const handedness = results.multiHandedness[0].label; // "Left" o "Right"
 
       gesture = detectGesture(landmarks);
-      fingers = countFingers(landmarks, handedness);
+      fingers = countFingers(landmarks, handedness); // ← Pasar handedness
     }
 
     /* HUD */
@@ -149,6 +143,7 @@ export default function HandTracker() {
     ctx.fillRect(0, 0, canvas.width, 96);
 
     ctx.textAlign = "center";
+
     ctx.font = "bold 30px Segoe UI";
     ctx.fillStyle = gesture === "OK 👌" ? "#facc15" : "#22c55e";
     ctx.fillText(gesture, canvas.width / 2, 38);
