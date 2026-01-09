@@ -1,41 +1,5 @@
-import { useEffect } from "react";
-import { Hands } from "@mediapipe/hands";
-import { Camera } from "@mediapipe/camera_utils";
-
-export const useHandTracker = (videoRef, onResults) => {
-  useEffect(() => {
-    const hands = new Hands({
-      locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
-    });
-
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7,
-    });
-
-    hands.onResults(onResults);
-
-    const camera = new Camera(videoRef.current, {
-      onFrame: async () => {
-        await hands.send({ image: videoRef.current });
-      },
-      width: 640,
-      height: 480,
-    });
-
-    camera.start();
-
-    return () => camera.stop();
-  }, [videoRef, onResults]);
-};
-
-
-
 import { useEffect, useRef } from "react";
-import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
+import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 /* ======================
@@ -45,7 +9,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS ROBUSTOS
+GESTOS
 ====================== */
 function thumbExtended(l) {
   return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
@@ -62,19 +26,11 @@ function fingersClosed(l) {
 }
 
 function isThumbUp(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y < l[2].y &&
-    fingersClosed(l)
-  );
+  return thumbExtended(l) && l[4].y < l[2].y && fingersClosed(l);
 }
 
 function isThumbDown(l) {
-  return (
-    thumbExtended(l) &&
-    l[4].y > l[2].y &&
-    fingersClosed(l)
-  );
+  return thumbExtended(l) && l[4].y > l[2].y && fingersClosed(l);
 }
 
 function isOK(l) {
@@ -87,6 +43,25 @@ function isOK(l) {
 }
 
 /* ======================
+CONTEO DE DEDOS (0–5)
+NO ROMPE GESTOS
+====================== */
+function countFingers(l) {
+  let count = 0;
+
+  // pulgar (horizontal)
+  if (l[4].x < l[3].x) count++;
+
+  // demás dedos (vertical)
+  if (fingerUp(l, 8, 6)) count++;
+  if (fingerUp(l, 12, 10)) count++;
+  if (fingerUp(l, 16, 14)) count++;
+  if (fingerUp(l, 20, 18)) count++;
+
+  return count;
+}
+
+/* ======================
 COMPONENTE
 ====================== */
 export default function HandTracker() {
@@ -96,7 +71,7 @@ export default function HandTracker() {
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`, // ✅ Corregido: sin espacios
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -132,8 +107,6 @@ export default function HandTracker() {
     if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
     if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
-    if (index && !middle && !ring && !pinky) return "APUNTAR ☝️";
-    if (index && pinky && !middle && !ring) return "ROCK 🤟";
 
     return "—";
   }
@@ -142,38 +115,44 @@ export default function HandTracker() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* espejo */
+    ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
     let gesture = "Sin mano";
+    let fingers = 0;
 
     if (results.multiHandLandmarks) {
       for (const l of results.multiHandLandmarks) {
         gesture = detectGesture(l);
+        fingers = countFingers(l);
       }
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, 56);
+    ctx.fillRect(0, 0, canvas.width, 90);
 
-    ctx.font = "bold 28px Segoe UI, Arial";
     ctx.textAlign = "center";
+
+    ctx.font = "bold 28px Segoe UI";
     ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 38);
+    ctx.fillText(gesture, canvas.width / 2, 36);
+
+    ctx.font = "bold 22px Segoe UI";
+    ctx.fillStyle = "#38bdf8";
+    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 68);
   }
 
   return (
     <div
       style={{
         minHeight: "100svh",
-        background: "linear-gradient(180deg,#020617,#020617)",
+        background: "#020617",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -181,13 +160,7 @@ export default function HandTracker() {
         gap: 12,
       }}
     >
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: 13,
-          letterSpacing: 0.4,
-        }}
-      >
+      <div style={{ color: "#94a3b8", fontSize: 13 }}>
         Autor: Jorge Patricio Santamaría Cherrez
       </div>
 
@@ -199,7 +172,6 @@ export default function HandTracker() {
           borderRadius: 18,
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.4)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
           background: "#000",
         }}
       >
@@ -213,4 +185,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-          }
+}
