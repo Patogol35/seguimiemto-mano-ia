@@ -35,7 +35,7 @@ function isThumbDown(l) {
 
 function isOK(l) {
   return (
-    dist(l[4], l[8]) < 0.045 && // 🔑 tolerancia correcta
+    dist(l[4], l[8]) < 0.045 &&
     fingerUp(l, 12, 10) &&
     fingerUp(l, 16, 14) &&
     fingerUp(l, 20, 18)
@@ -48,9 +48,7 @@ CONTEO DE DEDOS (0–5)
 function countFingers(l) {
   let count = 0;
 
-  // pulgar
   if (l[4].x < l[3].x) count++;
-
   if (fingerUp(l, 8, 6)) count++;
   if (fingerUp(l, 12, 10)) count++;
   if (fingerUp(l, 16, 14)) count++;
@@ -99,7 +97,6 @@ export default function HandTracker() {
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
 
-    // 🔥 OK VA PRIMERO
     if (isOK(l)) return "OK 👌";
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
     if (isThumbDown(l)) return "PULGAR ABAJO 👎";
@@ -150,16 +147,18 @@ export default function HandTracker() {
   return (
     <div
       style={{
-        minHeight: "100svh",
+        height: "100dvh",
         background: "#020617",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        padding: 20,
-        gap: 12,
+        justifyContent: "center",
+        paddingInline: 16,
+        gap: 8,
+        boxSizing: "border-box",
       }}
     >
-      <div style={{ color: "#94a3b8", fontSize: 13 }}>
+      <div style={{ color: "#94a3b8", fontSize: 12 }}>
         Autor: Jorge Patricio Santamaría Cherrez
       </div>
 
@@ -168,6 +167,7 @@ export default function HandTracker() {
           width: "100%",
           maxWidth: 640,
           aspectRatio: "4 / 3",
+          maxHeight: "75dvh",
           borderRadius: 18,
           overflow: "hidden",
           border: "1px solid rgba(34,197,94,0.4)",
@@ -184,4 +184,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-                  }
+    }
