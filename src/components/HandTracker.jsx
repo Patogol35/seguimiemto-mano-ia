@@ -9,19 +9,20 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS
+CONTEO DE DEDOS (0–5)
 ====================== */
-function detectGesture(l) {
-  const index = fingerUp(l, 8, 6);
-  const middle = fingerUp(l, 12, 10);
-  const ring = fingerUp(l, 16, 14);
-  const pinky = fingerUp(l, 20, 18);
+function countFingers(l) {
+  let count = 0;
 
-  if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
-  if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
-  if (index && middle && !ring && !pinky) return "PAZ ✌️";
+  // Pulgar (mano izquierda como lo tenías)
+  if (l[4].x < l[3].x) count++;
 
-  return "—";
+  if (fingerUp(l, 8, 6)) count++;
+  if (fingerUp(l, 12, 10)) count++;
+  if (fingerUp(l, 16, 14)) count++;
+  if (fingerUp(l, 20, 18)) count++;
+
+  return count;
 }
 
 /* ======================
@@ -30,12 +31,8 @@ COMPONENTE
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const handsRef = useRef(null);
-  const cameraRef = useRef(null);
 
   useEffect(() => {
-    if (!videoRef.current) return;
-
     const hands = new Hands({
       locateFile: (f) =>
         `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
@@ -49,35 +46,39 @@ export default function HandTracker() {
     });
 
     hands.onResults(onResults);
-    handsRef.current = hands;
 
     const camera = new Camera(videoRef.current, {
+      onFrame: async () => {
+        await hands.send({ image: videoRef.current });
+      },
       width: 640,
       height: 480,
-      onFrame: async () => {
-        if (handsRef.current) {
-          await handsRef.current.send({
-            image: videoRef.current,
-          });
-        }
-      },
     });
 
     camera.start();
-    cameraRef.current = camera;
-
-    // 🔥 CLEANUP REAL (ESTO EVITA EL FREEZE)
-    return () => {
-      camera.stop();
-      hands.close();
-    };
+    return () => camera.stop();
   }, []);
+
+  /* ======================
+  DETECCIÓN DE GESTOS (3)
+  ====================== */
+  function detectGesture(l) {
+    const index = fingerUp(l, 8, 6);
+    const middle = fingerUp(l, 12, 10);
+    const ring = fingerUp(l, 16, 14);
+    const pinky = fingerUp(l, 20, 18);
+
+    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
+    if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
+    if (index && middle && !ring && !pinky) return "PAZ ✌️";
+
+    return "—";
+  }
 
   function onResults(results) {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
@@ -87,19 +88,28 @@ export default function HandTracker() {
     ctx.restore();
 
     let gesture = "Sin mano";
+    let fingers = 0;
 
-    if (results.multiHandLandmarks?.length) {
-      gesture = detectGesture(results.multiHandLandmarks[0]);
+    if (results.multiHandLandmarks) {
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+        fingers = countFingers(l);
+      }
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 80);
+    ctx.fillRect(0, 0, canvas.width, 96);
 
     ctx.textAlign = "center";
-    ctx.font = "bold 28px Segoe UI";
+
+    ctx.font = "bold 30px Segoe UI";
     ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 48);
+    ctx.fillText(gesture, canvas.width / 2, 38);
+
+    ctx.font = "bold 22px Segoe UI";
+    ctx.fillStyle = "#38bdf8";
+    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 72);
   }
 
   return (
@@ -129,7 +139,7 @@ export default function HandTracker() {
           background: "#000",
         }}
       >
-        <video ref={videoRef} playsInline style={{ display: "none" }} />
+        <video ref={videoRef} style={{ display: "none" }} />
         <canvas
           ref={canvasRef}
           width={640}
@@ -139,4 +149,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-                  }
+}
