@@ -9,21 +9,24 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS
+GESTO OK 👌 (ESTABLE)
 ====================== */
-
-// OK 👌 estable
 function isOK(l) {
+  const thumbIndexDist = dist(l[4], l[8]);
+  const indexFolded = !fingerUp(l, 8, 6);
+
   return (
-    dist(l[4], l[8]) < 0.05 &&
-    !fingerUp(l, 8, 6) &&
+    thumbIndexDist < 0.05 &&
+    indexFolded &&
     fingerUp(l, 12, 10) &&
     fingerUp(l, 16, 14) &&
     fingerUp(l, 20, 18)
   );
 }
 
-// Pulgar arriba 👍 estable
+/* ======================
+GESTO PULGAR ARRIBA 👍 (SEGURO)
+====================== */
 function isThumbUp(l) {
   return (
     fingerUp(l, 4, 3) &&
@@ -42,11 +45,9 @@ export default function HandTracker() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    if (!videoRef.current) return;
-
     const hands = new Hands({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -59,20 +60,19 @@ export default function HandTracker() {
     hands.onResults(onResults);
 
     const camera = new Camera(videoRef.current, {
-      width: 640,
-      height: 480,
       onFrame: async () => {
         await hands.send({ image: videoRef.current });
       },
+      width: 640,
+      height: 480,
     });
 
     camera.start();
-
     return () => camera.stop();
   }, []);
 
   /* ======================
-  DETECCIÓN
+  DETECCIÓN DE GESTOS
   ====================== */
   function detectGesture(l) {
     const index = fingerUp(l, 8, 6);
@@ -91,8 +91,6 @@ export default function HandTracker() {
 
   function onResults(results) {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -105,16 +103,18 @@ export default function HandTracker() {
 
     let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks?.length) {
-      gesture = detectGesture(results.multiHandLandmarks[0]);
+    if (results.multiHandLandmarks) {
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+      }
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 60);
+    ctx.fillRect(0, 0, canvas.width, 70);
 
     ctx.textAlign = "center";
-    ctx.font = "bold 26px Segoe UI";
+    ctx.font = "bold 30px Segoe UI";
     ctx.fillStyle =
       gesture === "OK 👌"
         ? "#facc15"
@@ -122,7 +122,7 @@ export default function HandTracker() {
         ? "#38bdf8"
         : "#22c55e";
 
-    ctx.fillText(gesture, canvas.width / 2, 40);
+    ctx.fillText(gesture, canvas.width / 2, 45);
   }
 
   return (
@@ -152,13 +152,8 @@ export default function HandTracker() {
           background: "#000",
         }}
       >
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{ display: "none" }}
-        />
+        {/* NO TOCAR */}
+        <video ref={videoRef} style={{ display: "none" }} />
         <canvas
           ref={canvasRef}
           width={640}
@@ -168,4 +163,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-  }
+}
