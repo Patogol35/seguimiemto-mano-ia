@@ -2,60 +2,14 @@ import { useEffect, useRef } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-/* ======================
-UTILS
-====================== */
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
-
-/* ======================
-GESTOS (ROBUSTOS)
-====================== */
-
-// OK 👌
-function isOK(l) {
-  return (
-    dist(l[4], l[8]) < 0.05 &&
-    !fingerUp(l, 8, 6) &&
-    fingerUp(l, 12, 10) &&
-    fingerUp(l, 16, 14) &&
-    fingerUp(l, 20, 18)
-  );
-}
-
-// 👍 Pulgar arriba
-function isThumbUp(l) {
-  return (
-    fingerUp(l, 4, 3) &&
-    !fingerUp(l, 8, 6) &&
-    !fingerUp(l, 12, 10) &&
-    !fingerUp(l, 16, 14) &&
-    !fingerUp(l, 20, 18)
-  );
-}
-
-// ✊ Puño cerrado
-function isFist(l) {
-  const w = l[0];
-  return (
-    dist(l[8], w) < dist(l[5], w) * 0.9 &&
-    dist(l[12], w) < dist(l[9], w) * 0.9 &&
-    dist(l[16], w) < dist(l[13], w) * 0.9 &&
-    dist(l[20], w) < dist(l[17], w) * 0.9
-  );
-}
-
-/* ======================
-COMPONENTE
-====================== */
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const hands = new Hands({
-      locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
     });
 
     hands.setOptions({
@@ -76,87 +30,60 @@ export default function HandTracker() {
     });
 
     camera.start();
-    return () => camera.stop();
   }, []);
 
-  function detectGesture(l) {
-    const index = fingerUp(l, 8, 6);
-    const middle = fingerUp(l, 12, 10);
-    const ring = fingerUp(l, 16, 14);
-    const pinky = fingerUp(l, 20, 18);
-
-    if (isOK(l)) return "OK 👌";
-    if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
-    if (isFist(l)) return "PUÑO ✊";
-    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
-    if (index && middle && !ring && !pinky) return "PAZ ✌️";
-
-    return "—";
-  }
-
-  function onResults(results) {
+  const onResults = (results) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
 
-    let gesture = "Sin mano";
+    if (results.multiHandLandmarks) {
+      for (const landmarks of results.multiHandLandmarks) {
+        landmarks.forEach((point) => {
+          ctx.beginPath();
+          ctx.arc(
+            point.x * canvas.width,
+            point.y * canvas.height,
+            5,
+            0,
+            2 * Math.PI
+          );
+          ctx.fillStyle = "#22c55e";
+          ctx.fill();
+        });
 
-    if (results.multiHandLandmarks?.length) {
-      gesture = detectGesture(results.multiHandLandmarks[0]);
+        detectGesture(landmarks);
+      }
     }
+  };
 
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 70);
+  const detectGesture = (landmarks) => {
+    const indexTip = landmarks[8];
+    const thumbTip = landmarks[4];
 
-    ctx.textAlign = "center";
-    ctx.font = "bold 30px Segoe UI";
-    ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 45);
-  }
+    const distance = Math.abs(indexTip.x - thumbTip.x);
+
+    if (distance < 0.03) {
+      console.log("✊ CLICK");
+    } else {
+      console.log("👉 MOVIENDO");
+    }
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100svh",
-        background: "#020617",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: 20,
-        gap: 12,
-      }}
-    >
-      <div style={{ color: "#94a3b8", fontSize: 13 }}>
-        Autor: Jorge Patricio Santamaría Cherrez
-      </div>
-
-      <div
+    <div style={{ display: "flex", justifyContent: "center" }}>
+      <video ref={videoRef} style={{ display: "none" }} />
+      <canvas
+        ref={canvasRef}
+        width={640}
+        height={480}
         style={{
-          width: "100%",
-          maxWidth: 640,
-          aspectRatio: "4 / 3",
-          borderRadius: 18,
-          overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.4)",
-          background: "#000",
+          borderRadius: "12px",
+          border: "2px solid #22c55e",
         }}
-      >
-        {/* NO TOCAR */}
-        <video ref={videoRef} style={{ display: "none" }} />
-        <canvas
-          ref={canvasRef}
-          width={640}
-          height={480}
-          style={{ width: "100%", height: "100%" }}
-        />
-      </div>
+      />
     </div>
   );
 }
