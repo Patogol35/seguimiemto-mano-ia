@@ -8,29 +8,29 @@ import { Camera } from "@mediapipe/camera_utils";
 const STABLE_FRAMES = 6;
 
 /* =========================
-   MAPA GESTO → ACCIÓN
+   ACCIONES
 ========================= */
 const gestureActions = {
-  "✊ PUÑO": () => console.log("Acción: PUÑO"),
-  "✋ MANO ABIERTA": () => console.log("Acción: MANO ABIERTA"),
-  "✌️ PAZ": () => console.log("Acción: PAZ"),
-  "👍 PULGAR ARRIBA": () => console.log("Acción: LIKE"),
-  "👎 PULGAR ABAJO": () => console.log("Acción: DISLIKE"),
+  "👍 PULGAR ARRIBA": () => console.log("LIKE"),
+  "👎 PULGAR ABAJO": () => console.log("DISLIKE"),
+  "✌️ PAZ": () => console.log("PAZ"),
+  "✋ MANO ABIERTA": () => console.log("OPEN"),
+  "✊ PUÑO": () => console.log("FIST"),
 };
 
 export default function HandTracker({ onGestureChange }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  const lastGestureRef = useRef(null);
-  const stableCountRef = useRef(0);
+  const lastGesture = useRef(null);
+  const stableCount = useRef(0);
 
   const [gesture, setGesture] = useState("Detectando...");
 
   useEffect(() => {
     const hands = new Hands({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      locateFile: (f) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
 
     hands.setOptions({
@@ -46,8 +46,6 @@ export default function HandTracker({ onGestureChange }) {
       onFrame: async () => {
         await hands.send({ image: videoRef.current });
       },
-      width: 640,
-      height: 480,
     });
 
     camera.start();
@@ -60,6 +58,8 @@ export default function HandTracker({ onGestureChange }) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
+    resizeCanvas(canvas);
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
@@ -71,40 +71,45 @@ export default function HandTracker({ onGestureChange }) {
     const lm = results.multiHandLandmarks[0];
     drawLandmarks(ctx, lm);
 
-    const detectedGesture = detectGesture(lm);
-    updateGesture(detectedGesture);
+    const g = detectGesture(lm);
+    updateGesture(g);
   };
 
   /* =========================
      SUAVIZADO
   ========================= */
-  const updateGesture = (newGesture) => {
-    if (newGesture === lastGestureRef.current) {
-      stableCountRef.current++;
+  const updateGesture = (g) => {
+    if (g === lastGesture.current) {
+      stableCount.current++;
     } else {
-      lastGestureRef.current = newGesture;
-      stableCountRef.current = 1;
+      lastGesture.current = g;
+      stableCount.current = 1;
     }
 
-    if (
-      stableCountRef.current >= STABLE_FRAMES &&
-      newGesture !== gesture
-    ) {
-      setGesture(newGesture);
-
-      if (onGestureChange) onGestureChange(newGesture);
-      if (gestureActions[newGesture]) gestureActions[newGesture]();
+    if (stableCount.current >= STABLE_FRAMES && g !== gesture) {
+      setGesture(g);
+      onGestureChange?.(g);
+      gestureActions[g]?.();
     }
   };
 
   /* =========================
-     DETECCIÓN
+     UTILIDADES MATEMÁTICAS
   ========================= */
+  const angle = (a, b, c) => {
+    const ab = { x: a.x - b.x, y: a.y - b.y };
+    const cb = { x: c.x - b.x, y: c.y - b.y };
+    const dot = ab.x * cb.x + ab.y * cb.y;
+    const mag =
+      Math.hypot(ab.x, ab.y) * Math.hypot(cb.x, cb.y);
+    return Math.acos(dot / mag) * (180 / Math.PI);
+  };
+
   const isFingerUp = (tip, pip) => tip.y < pip.y;
 
-  const distance = (a, b) =>
-    Math.hypot(a.x - b.x, a.y - b.y);
-
+  /* =========================
+     DETECCIÓN REAL
+  ========================= */
   const detectGesture = (lm) => {
     const indexUp = isFingerUp(lm[8], lm[6]);
     const middleUp = isFingerUp(lm[12], lm[10]);
@@ -114,63 +119,91 @@ export default function HandTracker({ onGestureChange }) {
     const fingersUp = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean)
       .length;
 
-    /* ===== PULGAR PROFESIONAL ===== */
+    // Ángulo del pulgar (CMC–MCP–TIP)
+    const thumbAngle = angle(lm[1], lm[2], lm[4]);
+    const thumbExtended = thumbAngle > 150;
 
-    // Pulgar extendido (forma)
-    const thumbExtended = distance(lm[4], lm[2]) > 0.08;
-
-    // Dirección del pulgar (vector)
-    const thumbVectorY = lm[4].y - lm[2].y;
-    const thumbUp = thumbVectorY < -0.04;
-    const thumbDown = thumbVectorY > 0.04;
-
-    /* ===== ORDEN CRÍTICO ===== */
+    const thumbDirection = lm[4].y - lm[2].y;
 
     // ✌️ PAZ
-    if (indexUp && middleUp && !ringUp && !pinkyUp) {
-      return "✌️ PAZ";
-    }
+    if (indexUp && middleUp && !ringUp && !pinkyUp) return "✌️ PAZ";
 
     // 👍 PULGAR ARRIBA
-    if (thumbExtended && thumbUp && fingersUp === 0) {
+    if (thumbExtended && thumbDirection < -0.02 && fingersUp === 0)
       return "👍 PULGAR ARRIBA";
-    }
 
     // 👎 PULGAR ABAJO
-    if (thumbExtended && thumbDown && fingersUp === 0) {
+    if (thumbExtended && thumbDirection > 0.02 && fingersUp === 0)
       return "👎 PULGAR ABAJO";
-    }
-
-    // ✊ PUÑO
-    if (fingersUp === 0 && !thumbExtended) {
-      return "✊ PUÑO";
-    }
 
     // ✋ MANO ABIERTA
-    if (fingersUp === 4 && thumbExtended) {
-      return "✋ MANO ABIERTA";
-    }
+    if (fingersUp === 4 && thumbExtended) return "✋ MANO ABIERTA";
+
+    // ✊ PUÑO
+    if (fingersUp === 0 && !thumbExtended) return "✊ PUÑO";
 
     return "🤔 DESCONOCIDO";
   };
 
   /* =========================
-     DIBUJO
+     CANVAS RESPONSIVE
   ========================= */
+  const resizeCanvas = (canvas) => {
+    const parent = canvas.parentElement;
+    const size = Math.min(parent.offsetWidth, 420);
+    canvas.width = size;
+    canvas.height = size * 0.75;
+  };
+
   const drawLandmarks = (ctx, lm) => {
-    ctx.fillStyle = "#00ffcc";
+    ctx.fillStyle = "#22d3ee";
     lm.forEach((p) => {
       ctx.beginPath();
-      ctx.arc(p.x * 640, p.y * 480, 4, 0, Math.PI * 2);
+      ctx.arc(p.x * ctx.canvas.width, p.y * ctx.canvas.height, 4, 0, Math.PI * 2);
       ctx.fill();
     });
   };
 
+  /* =========================
+     UI
+  ========================= */
   return (
-    <div style={{ textAlign: "center" }}>
+    <div style={styles.wrapper}>
       <video ref={videoRef} style={{ display: "none" }} />
-      <canvas ref={canvasRef} width={640} height={480} />
-      <h2>{gesture}</h2>
+
+      <div style={styles.card}>
+        <canvas ref={canvasRef} />
+        <div style={styles.gesture}>{gesture}</div>
+      </div>
     </div>
   );
 }
+
+/* =========================
+   ESTILOS
+========================= */
+const styles = {
+  wrapper: {
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "#020617",
+    padding: 16,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 440,
+    background: "#020617",
+    borderRadius: 16,
+    boxShadow: "0 0 40px rgba(34,211,238,.25)",
+    padding: 12,
+    textAlign: "center",
+  },
+  gesture: {
+    marginTop: 12,
+    fontSize: "1.3rem",
+    fontWeight: 600,
+    color: "#e5e7eb",
+  },
+};
