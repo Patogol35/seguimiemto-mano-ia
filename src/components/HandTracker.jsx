@@ -41,6 +41,7 @@ export default function HandTracker() {
 
     if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
+        // 🔵 Dibujar puntos
         landmarks.forEach((point) => {
           ctx.beginPath();
           ctx.arc(
@@ -54,26 +55,98 @@ export default function HandTracker() {
           ctx.fill();
         });
 
-        detectGesture(landmarks);
+        detectGesture(landmarks, ctx);
       }
     }
   };
 
-  const detectGesture = (landmarks) => {
-    const indexTip = landmarks[8];
+  const detectGesture = (landmarks, ctx) => {
     const thumbTip = landmarks[4];
+    const thumbIp = landmarks[3];
 
-    const distance = Math.abs(indexTip.x - thumbTip.x);
+    const indexTip = landmarks[8];
+    const indexPip = landmarks[6];
 
-    if (distance < 0.03) {
-      console.log("✊ CLICK");
-    } else {
-      console.log("👉 MOVIENDO");
+    const middleTip = landmarks[12];
+    const middlePip = landmarks[10];
+
+    const ringTip = landmarks[16];
+    const ringPip = landmarks[14];
+
+    const pinkyTip = landmarks[20];
+    const pinkyPip = landmarks[18];
+
+    const thumbOpen = thumbTip.x > thumbIp.x;
+    const indexOpen = indexTip.y < indexPip.y;
+    const middleOpen = middleTip.y < middlePip.y;
+    const ringOpen = ringTip.y < ringPip.y;
+    const pinkyOpen = pinkyTip.y < pinkyPip.y;
+
+    let gesture = "🤷 GESTO NO RECONOCIDO";
+
+    // 🤏 PINZA (CLICK)
+    const pinchDistance = Math.abs(indexTip.x - thumbTip.x);
+    if (pinchDistance < 0.03) {
+      gesture = "🤏 PINZA / CLICK";
     }
+
+    // ✊ PUÑO
+    else if (
+      !indexOpen &&
+      !middleOpen &&
+      !ringOpen &&
+      !pinkyOpen
+    ) {
+      gesture = "✊ PUÑO";
+    }
+
+    // ✋ MANO ABIERTA
+    else if (
+      indexOpen &&
+      middleOpen &&
+      ringOpen &&
+      pinkyOpen
+    ) {
+      gesture = "✋ MANO ABIERTA";
+    }
+
+    // 👍 PULGAR ARRIBA
+    else if (
+      thumbOpen &&
+      !indexOpen &&
+      !middleOpen &&
+      !ringOpen &&
+      !pinkyOpen
+    ) {
+      gesture = "👍 PULGAR ARRIBA";
+    }
+
+    // 👉 SEÑALAR
+    else if (
+      indexOpen &&
+      !middleOpen &&
+      !ringOpen &&
+      !pinkyOpen
+    ) {
+      gesture = "👉 SEÑALANDO";
+    }
+
+    // 📝 Mostrar gesto en pantalla
+    ctx.font = "28px Arial";
+    ctx.fillStyle = "#22c55e";
+    ctx.fillText(gesture, 20, 40);
+
+    console.log(gesture);
   };
 
   return (
-    <div style={{ display: "flex", justifyContent: "center" }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        marginTop: "20px",
+      }}
+    >
       <video ref={videoRef} style={{ display: "none" }} />
       <canvas
         ref={canvasRef}
@@ -81,7 +154,7 @@ export default function HandTracker() {
         height={480}
         style={{
           borderRadius: "12px",
-          border: "2px solid #22c55e",
+          border: "3px solid #22c55e",
         }}
       />
     </div>
