@@ -9,23 +9,33 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTO OK 👌 (MEJORADO Y SEGURO)
+GESTO OK 👌 (ESTABLE)
 ====================== */
 function isOK(l) {
   const thumbIndexDist = dist(l[4], l[8]);
   const indexFolded = !fingerUp(l, 8, 6);
 
-  const middleUp = fingerUp(l, 12, 10);
-  const ringUp = fingerUp(l, 16, 14);
-  const pinkyUp = fingerUp(l, 20, 18);
-
   return (
-    thumbIndexDist < 0.05 && // tolerante pero estable
-    indexFolded &&          // evita confundir con ✌️
-    middleUp &&
-    ringUp &&
-    pinkyUp
+    thumbIndexDist < 0.05 &&
+    indexFolded &&
+    fingerUp(l, 12, 10) &&
+    fingerUp(l, 16, 14) &&
+    fingerUp(l, 20, 18)
   );
+}
+
+/* ======================
+GESTO PULGAR ARRIBA 👍 (ROBUSTO)
+====================== */
+function isThumbUp(l) {
+  const thumbUp = l[4].y < l[3].y && l[3].y < l[2].y;
+  const otherFingersDown =
+    !fingerUp(l, 8, 6) &&
+    !fingerUp(l, 12, 10) &&
+    !fingerUp(l, 16, 14) &&
+    !fingerUp(l, 20, 18);
+
+  return thumbUp && otherFingersDown;
 }
 
 /* ======================
@@ -72,6 +82,7 @@ export default function HandTracker() {
     const pinky = fingerUp(l, 20, 18);
 
     if (isOK(l)) return "OK 👌";
+    if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
     if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
     if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
@@ -105,7 +116,13 @@ export default function HandTracker() {
 
     ctx.textAlign = "center";
     ctx.font = "bold 30px Segoe UI";
-    ctx.fillStyle = gesture === "OK 👌" ? "#facc15" : "#22c55e";
+    ctx.fillStyle =
+      gesture === "OK 👌"
+        ? "#facc15"
+        : gesture === "PULGAR ARRIBA 👍"
+        ? "#4ade80"
+        : "#22c55e";
+
     ctx.fillText(gesture, canvas.width / 2, 45);
   }
 
