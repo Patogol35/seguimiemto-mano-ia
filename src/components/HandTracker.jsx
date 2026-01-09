@@ -5,10 +5,11 @@ import { Camera } from "@mediapipe/camera_utils";
 /* ======================
 UTILS
 ====================== */
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS SIMPLES Y ESTABLES
+GESTOS
 ====================== */
 function detectGesture(l) {
   const index = fingerUp(l, 8, 6);
@@ -16,22 +17,11 @@ function detectGesture(l) {
   const ring = fingerUp(l, 16, 14);
   const pinky = fingerUp(l, 20, 18);
 
-  // ✊ Puño
-  if (!index && !middle && !ring && !pinky) {
-    return { name: "PUÑO ✊", fingers: 0 };
-  }
+  if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
+  if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
+  if (index && middle && !ring && !pinky) return "PAZ ✌️";
 
-  // 🖐️ Mano abierta
-  if (index && middle && ring && pinky) {
-    return { name: "MANO ABIERTA 🖐️", fingers: 4 };
-  }
-
-  // ✌️ Paz
-  if (index && middle && !ring && !pinky) {
-    return { name: "PAZ ✌️", fingers: 2 };
-  }
-
-  return { name: "—", fingers: "-" };
+  return "—";
 }
 
 /* ======================
@@ -76,7 +66,7 @@ export default function HandTracker() {
     camera.start();
     cameraRef.current = camera;
 
-    // CLEANUP REAL (clave)
+    // 🔥 CLEANUP REAL (ESTO EVITA EL FREEZE)
     return () => {
       camera.stop();
       hands.close();
@@ -90,7 +80,6 @@ export default function HandTracker() {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // espejo
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
@@ -98,28 +87,19 @@ export default function HandTracker() {
     ctx.restore();
 
     let gesture = "Sin mano";
-    let fingers = "-";
 
     if (results.multiHandLandmarks?.length) {
-      const l = results.multiHandLandmarks[0];
-      const g = detectGesture(l);
-      gesture = g.name;
-      fingers = g.fingers;
+      gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
     /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, canvas.width, 90);
+    ctx.fillRect(0, 0, canvas.width, 80);
 
     ctx.textAlign = "center";
-
     ctx.font = "bold 28px Segoe UI";
     ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 36);
-
-    ctx.font = "bold 22px Segoe UI";
-    ctx.fillStyle = "#38bdf8";
-    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 70);
+    ctx.fillText(gesture, canvas.width / 2, 48);
   }
 
   return (
@@ -159,4 +139,4 @@ export default function HandTracker() {
       </div>
     </div>
   );
-}
+                  }
