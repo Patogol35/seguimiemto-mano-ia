@@ -5,7 +5,7 @@ import { Camera } from "@mediapipe/camera_utils";
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [gesture, setGesture] = useState("Esperando mano...");
+  const [gesture, setGesture] = useState("👋 Muestra tu mano");
 
   useEffect(() => {
     const hands = new Hands({
@@ -40,22 +40,21 @@ export default function HandTracker() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    if (results.multiHandLandmarks) {
-      for (const landmarks of results.multiHandLandmarks) {
-        drawLandmarks(ctx, landmarks);
-        detectGesture(landmarks);
-      }
+    if (results.multiHandLandmarks?.length) {
+      const landmarks = results.multiHandLandmarks[0];
+      drawLandmarks(ctx, landmarks);
+      detectGesture(landmarks);
     } else {
       setGesture("👋 Muestra tu mano");
     }
   };
 
   const drawLandmarks = (ctx, landmarks) => {
-    landmarks.forEach((point) => {
+    landmarks.forEach((p) => {
       ctx.beginPath();
       ctx.arc(
-        point.x * ctx.canvas.width,
-        point.y * ctx.canvas.height,
+        p.x * ctx.canvas.width,
+        p.y * ctx.canvas.height,
         6,
         0,
         Math.PI * 2
@@ -65,61 +64,58 @@ export default function HandTracker() {
     });
   };
 
-  const detectGesture = (landmarks) => {
-    const thumbTip = landmarks[4];
-    const thumbBase = landmarks[2];
+  const fingerOpen = (tip, pip) => tip.y < pip.y;
 
-    const indexTip = landmarks[8];
-    const indexPip = landmarks[6];
+  const detectGesture = (lm) => {
+    const thumbTip = lm[4];
+    const thumbMcp = lm[2];
 
-    const middleTip = landmarks[12];
-    const middlePip = landmarks[10];
+    const indexOpen = fingerOpen(lm[8], lm[6]);
+    const middleOpen = fingerOpen(lm[12], lm[10]);
+    const ringOpen = fingerOpen(lm[16], lm[14]);
+    const pinkyOpen = fingerOpen(lm[20], lm[18]);
 
-    const ringTip = landmarks[16];
-    const ringPip = landmarks[14];
+    const openFingers = [
+      indexOpen,
+      middleOpen,
+      ringOpen,
+      pinkyOpen,
+    ].filter(Boolean).length;
 
-    const pinkyTip = landmarks[20];
-    const pinkyPip = landmarks[18];
+    // 🤏 PINZA (PRIORIDAD MÁXIMA)
+    const pinch =
+      Math.hypot(lm[8].x - thumbTip.x, lm[8].y - thumbTip.y) < 0.04;
 
-    const indexOpen = indexTip.y < indexPip.y;
-    const middleOpen = middleTip.y < middlePip.y;
-    const ringOpen = ringTip.y < ringPip.y;
-    const pinkyOpen = pinkyTip.y < pinkyPip.y;
-
-    // 🤏 PINZA
-    const pinch = Math.abs(indexTip.x - thumbTip.x) < 0.03;
     if (pinch) {
       setGesture("🤏 PINZA / CLICK");
       return;
     }
 
-    // 👍 PULGAR ARRIBA (CORREGIDO)
-    const thumbUp = thumbTip.y < thumbBase.y;
+    // 👍 PULGAR ARRIBA (ESTABLE)
+    const thumbUp = thumbTip.y < thumbMcp.y - 0.05;
+
     if (
       thumbUp &&
-      !indexOpen &&
-      !middleOpen &&
-      !ringOpen &&
-      !pinkyOpen
+      openFingers === 0
     ) {
       setGesture("👍 PULGAR ARRIBA");
       return;
     }
 
     // ✊ PUÑO
-    if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
+    if (openFingers === 0) {
       setGesture("✊ PUÑO");
       return;
     }
 
     // ✋ MANO ABIERTA
-    if (indexOpen && middleOpen && ringOpen && pinkyOpen) {
+    if (openFingers === 4) {
       setGesture("✋ MANO ABIERTA");
       return;
     }
 
     // 👉 SEÑALAR
-    if (indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
+    if (indexOpen && openFingers === 1) {
       setGesture("👉 SEÑALANDO");
       return;
     }
@@ -132,7 +128,7 @@ export default function HandTracker() {
       style={{
         display: "flex",
         justifyContent: "center",
-        marginTop: "30px",
+        marginTop: 30,
         position: "relative",
       }}
     >
@@ -143,24 +139,23 @@ export default function HandTracker() {
         width={640}
         height={480}
         style={{
-          borderRadius: "16px",
+          borderRadius: 18,
           border: "4px solid #22c55e",
-          boxShadow: "0 0 25px rgba(34,197,94,0.4)",
+          boxShadow: "0 0 30px rgba(34,197,94,.45)",
         }}
       />
 
-      {/* Overlay */}
       <div
         style={{
           position: "absolute",
-          bottom: "20px",
-          background: "rgba(0,0,0,0.6)",
+          bottom: 20,
+          background: "rgba(0,0,0,.65)",
           color: "#22c55e",
-          padding: "10px 20px",
-          borderRadius: "20px",
-          fontSize: "22px",
+          padding: "12px 24px",
+          borderRadius: 22,
+          fontSize: 22,
           fontWeight: "bold",
-          backdropFilter: "blur(6px)",
+          backdropFilter: "blur(8px)",
         }}
       >
         {gesture}
