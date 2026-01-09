@@ -9,10 +9,10 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS
+GESTOS (ROBUSTOS)
 ====================== */
 
-// 👌 OK
+// OK 👌
 function isOK(l) {
   return (
     dist(l[4], l[8]) < 0.05 &&
@@ -108,7 +108,7 @@ export default function HandTracker() {
 
     let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks) {
+    if (results.multiHandLandmarks?.length) {
       gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
@@ -130,6 +130,7 @@ export default function HandTracker() {
         flexDirection: "column",
         alignItems: "center",
         padding: 20,
+        gap: 12,
       }}
     >
       <div style={{ color: "#94a3b8", fontSize: 13 }}>
@@ -143,9 +144,11 @@ export default function HandTracker() {
           aspectRatio: "4 / 3",
           borderRadius: 18,
           overflow: "hidden",
+          border: "1px solid rgba(34,197,94,0.4)",
           background: "#000",
         }}
       >
+        {/* NO TOCAR */}
         <video ref={videoRef} style={{ display: "none" }} />
         <canvas
           ref={canvasRef}
