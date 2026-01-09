@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const [gesture, setGesture] = useState("Esperando mano...");
 
   useEffect(() => {
     const hands = new Hands({
@@ -41,28 +42,32 @@ export default function HandTracker() {
 
     if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
-        // 🔵 Dibujar puntos
-        landmarks.forEach((point) => {
-          ctx.beginPath();
-          ctx.arc(
-            point.x * canvas.width,
-            point.y * canvas.height,
-            5,
-            0,
-            2 * Math.PI
-          );
-          ctx.fillStyle = "#22c55e";
-          ctx.fill();
-        });
-
-        detectGesture(landmarks, ctx);
+        drawLandmarks(ctx, landmarks);
+        detectGesture(landmarks);
       }
+    } else {
+      setGesture("👋 Muestra tu mano");
     }
   };
 
-  const detectGesture = (landmarks, ctx) => {
+  const drawLandmarks = (ctx, landmarks) => {
+    landmarks.forEach((point) => {
+      ctx.beginPath();
+      ctx.arc(
+        point.x * ctx.canvas.width,
+        point.y * ctx.canvas.height,
+        6,
+        0,
+        Math.PI * 2
+      );
+      ctx.fillStyle = "#22c55e";
+      ctx.fill();
+    });
+  };
+
+  const detectGesture = (landmarks) => {
     const thumbTip = landmarks[4];
-    const thumbIp = landmarks[3];
+    const thumbBase = landmarks[2];
 
     const indexTip = landmarks[8];
     const indexPip = landmarks[6];
@@ -76,67 +81,50 @@ export default function HandTracker() {
     const pinkyTip = landmarks[20];
     const pinkyPip = landmarks[18];
 
-    const thumbOpen = thumbTip.x > thumbIp.x;
     const indexOpen = indexTip.y < indexPip.y;
     const middleOpen = middleTip.y < middlePip.y;
     const ringOpen = ringTip.y < ringPip.y;
     const pinkyOpen = pinkyTip.y < pinkyPip.y;
 
-    let gesture = "🤷 GESTO NO RECONOCIDO";
+    // 🤏 PINZA
+    const pinch = Math.abs(indexTip.x - thumbTip.x) < 0.03;
+    if (pinch) {
+      setGesture("🤏 PINZA / CLICK");
+      return;
+    }
 
-    // 🤏 PINZA (CLICK)
-    const pinchDistance = Math.abs(indexTip.x - thumbTip.x);
-    if (pinchDistance < 0.03) {
-      gesture = "🤏 PINZA / CLICK";
+    // 👍 PULGAR ARRIBA (CORREGIDO)
+    const thumbUp = thumbTip.y < thumbBase.y;
+    if (
+      thumbUp &&
+      !indexOpen &&
+      !middleOpen &&
+      !ringOpen &&
+      !pinkyOpen
+    ) {
+      setGesture("👍 PULGAR ARRIBA");
+      return;
     }
 
     // ✊ PUÑO
-    else if (
-      !indexOpen &&
-      !middleOpen &&
-      !ringOpen &&
-      !pinkyOpen
-    ) {
-      gesture = "✊ PUÑO";
+    if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
+      setGesture("✊ PUÑO");
+      return;
     }
 
     // ✋ MANO ABIERTA
-    else if (
-      indexOpen &&
-      middleOpen &&
-      ringOpen &&
-      pinkyOpen
-    ) {
-      gesture = "✋ MANO ABIERTA";
-    }
-
-    // 👍 PULGAR ARRIBA
-    else if (
-      thumbOpen &&
-      !indexOpen &&
-      !middleOpen &&
-      !ringOpen &&
-      !pinkyOpen
-    ) {
-      gesture = "👍 PULGAR ARRIBA";
+    if (indexOpen && middleOpen && ringOpen && pinkyOpen) {
+      setGesture("✋ MANO ABIERTA");
+      return;
     }
 
     // 👉 SEÑALAR
-    else if (
-      indexOpen &&
-      !middleOpen &&
-      !ringOpen &&
-      !pinkyOpen
-    ) {
-      gesture = "👉 SEÑALANDO";
+    if (indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
+      setGesture("👉 SEÑALANDO");
+      return;
     }
 
-    // 📝 Mostrar gesto en pantalla
-    ctx.font = "28px Arial";
-    ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, 20, 40);
-
-    console.log(gesture);
+    setGesture("🤷 GESTO NO DEFINIDO");
   };
 
   return (
@@ -144,19 +132,39 @@ export default function HandTracker() {
       style={{
         display: "flex",
         justifyContent: "center",
-        marginTop: "20px",
+        marginTop: "30px",
+        position: "relative",
       }}
     >
       <video ref={videoRef} style={{ display: "none" }} />
+
       <canvas
         ref={canvasRef}
         width={640}
         height={480}
         style={{
-          borderRadius: "12px",
-          border: "3px solid #22c55e",
+          borderRadius: "16px",
+          border: "4px solid #22c55e",
+          boxShadow: "0 0 25px rgba(34,197,94,0.4)",
         }}
       />
+
+      {/* Overlay */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "20px",
+          background: "rgba(0,0,0,0.6)",
+          color: "#22c55e",
+          padding: "10px 20px",
+          borderRadius: "20px",
+          fontSize: "22px",
+          fontWeight: "bold",
+          backdropFilter: "blur(6px)",
+        }}
+      >
+        {gesture}
+      </div>
     </div>
   );
 }
