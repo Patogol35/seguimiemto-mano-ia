@@ -13,8 +13,6 @@ GESTO OK ROBUSTO
 ====================== */
 function isOK(l) {
   const wrist = l[0];
-
-  // Tamaño relativo de la mano (escala dinámica)
   const handSize = dist(wrist, l[5]);
   const thumbIndexDist = dist(l[4], l[8]);
 
@@ -23,24 +21,23 @@ function isOK(l) {
   const pinkyUp = fingerUp(l, 20, 18);
 
   return (
-    thumbIndexDist < handSize * 0.35 && // 👈 ajustable (0.30–0.40)
+    thumbIndexDist < handSize * 0.35 &&
     middleUp &&
     ringUp &&
     pinkyUp
   );
 }
 
-/* ======================
-COMPONENTE
-====================== */
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
+    if (!videoRef.current) return;
+
     const hands = new Hands({
-      locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
     });
 
     hands.setOptions({
@@ -54,26 +51,29 @@ export default function HandTracker() {
 
     const camera = new Camera(videoRef.current, {
       onFrame: async () => {
-        await hands.send({ image: videoRef.current });
+        if (videoRef.current) {
+          await hands.send({ image: videoRef.current });
+        }
       },
       width: 640,
       height: 480,
     });
 
     camera.start();
-    return () => camera.stop();
+
+    return () => {
+      camera.stop();
+      hands.close();
+    };
   }, []);
 
-  /* ======================
-  DETECCIÓN DE GESTOS
-  ====================== */
   function detectGesture(l) {
     const index = fingerUp(l, 8, 6);
     const middle = fingerUp(l, 12, 10);
     const ring = fingerUp(l, 16, 14);
     const pinky = fingerUp(l, 20, 18);
 
-    if (isOK(l)) return "OK 👌"; // 🔥 prioridad absoluta
+    if (isOK(l)) return "OK 👌";
     if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
     if (!index && !middle && !ring && !pinky) return "MANO CERRADA ✊";
     if (index && middle && !ring && !pinky) return "PAZ ✌️";
@@ -83,11 +83,12 @@ export default function HandTracker() {
 
   function onResults(results) {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // espejo tipo selfie
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
@@ -96,13 +97,10 @@ export default function HandTracker() {
 
     let gesture = "Sin mano";
 
-    if (results.multiHandLandmarks) {
-      for (const l of results.multiHandLandmarks) {
-        gesture = detectGesture(l);
-      }
+    if (results.multiHandLandmarks?.length) {
+      gesture = detectGesture(results.multiHandLandmarks[0]);
     }
 
-    /* HUD */
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0, 0, canvas.width, 70);
 
@@ -139,7 +137,12 @@ export default function HandTracker() {
           background: "#000",
         }}
       >
-        <video ref={videoRef} style={{ display: "none" }} />
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          style={{ display: "none" }}
+        />
         <canvas
           ref={canvasRef}
           width={640}
