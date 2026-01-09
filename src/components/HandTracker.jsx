@@ -94,21 +94,15 @@ export default function HandTracker({ onGestureChange }) {
   };
 
   /* =========================
-     UTILIDADES MATEMÁTICAS
+     UTILIDADES
   ========================= */
-  const angle = (a, b, c) => {
-    const ab = { x: a.x - b.x, y: a.y - b.y };
-    const cb = { x: c.x - b.x, y: c.y - b.y };
-    const dot = ab.x * cb.x + ab.y * cb.y;
-    const mag =
-      Math.hypot(ab.x, ab.y) * Math.hypot(cb.x, cb.y);
-    return Math.acos(dot / mag) * (180 / Math.PI);
-  };
-
   const isFingerUp = (tip, pip) => tip.y < pip.y;
 
+  const dist = (a, b) =>
+    Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+
   /* =========================
-     DETECCIÓN REAL
+     DETECCIÓN FINAL (PRO)
   ========================= */
   const detectGesture = (lm) => {
     const indexUp = isFingerUp(lm[8], lm[6]);
@@ -119,21 +113,27 @@ export default function HandTracker({ onGestureChange }) {
     const fingersUp = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean)
       .length;
 
-    // Ángulo del pulgar (CMC–MCP–TIP)
-    const thumbAngle = angle(lm[1], lm[2], lm[4]);
-    const thumbExtended = thumbAngle > 150;
+    /* ===== PULGAR ===== */
 
-    const thumbDirection = lm[4].y - lm[2].y;
+    // Pulgar extendido (forma)
+    const thumbExtended = dist(lm[4], lm[2]) > 0.085;
+
+    // Dirección pulgar
+    const thumbUpY = lm[4].y < lm[2].y - 0.02;
+    const thumbUpZ = lm[4].z < lm[2].z - 0.02; // 👉 de frente a cámara
+    const thumbDownY = lm[4].y > lm[2].y + 0.02;
+
+    /* ===== ORDEN CLAVE ===== */
 
     // ✌️ PAZ
     if (indexUp && middleUp && !ringUp && !pinkyUp) return "✌️ PAZ";
 
-    // 👍 PULGAR ARRIBA
-    if (thumbExtended && thumbDirection < -0.02 && fingersUp === 0)
+    // 👍 PULGAR ARRIBA (Y o Z)
+    if (thumbExtended && fingersUp === 0 && (thumbUpY || thumbUpZ))
       return "👍 PULGAR ARRIBA";
 
     // 👎 PULGAR ABAJO
-    if (thumbExtended && thumbDirection > 0.02 && fingersUp === 0)
+    if (thumbExtended && fingersUp === 0 && thumbDownY)
       return "👎 PULGAR ABAJO";
 
     // ✋ MANO ABIERTA
@@ -150,16 +150,22 @@ export default function HandTracker({ onGestureChange }) {
   ========================= */
   const resizeCanvas = (canvas) => {
     const parent = canvas.parentElement;
-    const size = Math.min(parent.offsetWidth, 420);
-    canvas.width = size;
-    canvas.height = size * 0.75;
+    const w = Math.min(parent.offsetWidth, 420);
+    canvas.width = w;
+    canvas.height = w * 0.75;
   };
 
   const drawLandmarks = (ctx, lm) => {
     ctx.fillStyle = "#22d3ee";
     lm.forEach((p) => {
       ctx.beginPath();
-      ctx.arc(p.x * ctx.canvas.width, p.y * ctx.canvas.height, 4, 0, Math.PI * 2);
+      ctx.arc(
+        p.x * ctx.canvas.width,
+        p.y * ctx.canvas.height,
+        4,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
     });
   };
@@ -170,7 +176,6 @@ export default function HandTracker({ onGestureChange }) {
   return (
     <div style={styles.wrapper}>
       <video ref={videoRef} style={{ display: "none" }} />
-
       <div style={styles.card}>
         <canvas ref={canvasRef} />
         <div style={styles.gesture}>{gesture}</div>
