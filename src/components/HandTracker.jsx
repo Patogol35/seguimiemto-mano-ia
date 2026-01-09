@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
@@ -9,7 +9,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const fingerUp = (l, tip, pip) => l[tip].y < l[pip].y;
 
 /* ======================
-GESTOS
+GESTOS ROBUSTOS
 ====================== */
 function thumbExtended(l) {
   return dist(l[4], l[2]) > dist(l[5], l[0]) * 0.6;
@@ -43,17 +43,13 @@ function isOK(l) {
 }
 
 /* ======================
-CONTEO CORRECTO
+CONTEO DE DEDOS (0–5)
 ====================== */
-function countFingers(l, hand) {
+function countFingers(l) {
   let count = 0;
 
-  // Pulgar (izq / der)
-  if (hand === "Right") {
-    if (l[4].x > l[3].x) count++;
-  } else {
-    if (l[4].x < l[3].x) count++;
-  }
+  // pulgar (solo mano izquierda, tal como lo tenías)
+  if (l[4].x < l[3].x) count++;
 
   if (fingerUp(l, 8, 6)) count++;
   if (fingerUp(l, 12, 10)) count++;
@@ -69,19 +65,7 @@ COMPONENTE
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [landscape, setLandscape] = useState(
-    window.matchMedia("(orientation: landscape)").matches
-  );
 
-  /* Detectar orientación */
-  useEffect(() => {
-    const mq = window.matchMedia("(orientation: landscape)");
-    const handler = (e) => setLandscape(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  /* MediaPipe */
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) =>
@@ -110,17 +94,17 @@ export default function HandTracker() {
   }, []);
 
   function detectGesture(l) {
-    const i = fingerUp(l, 8, 6);
-    const m = fingerUp(l, 12, 10);
-    const r = fingerUp(l, 16, 14);
-    const p = fingerUp(l, 20, 18);
+    const index = fingerUp(l, 8, 6);
+    const middle = fingerUp(l, 12, 10);
+    const ring = fingerUp(l, 16, 14);
+    const pinky = fingerUp(l, 20, 18);
 
     if (isOK(l)) return "OK 👌";
     if (isThumbUp(l)) return "PULGAR ARRIBA 👍";
     if (isThumbDown(l)) return "PULGAR ABAJO 👎";
-    if (!i && !m && !r && !p) return "PUÑO ✊";
-    if (i && m && r && p) return "MANO ABIERTA 🖐️";
-    if (i && m && !r && !p) return "PAZ ✌️";
+    if (!index && !middle && !ring && !pinky) return "PUÑO ✊";
+    if (index && middle && ring && pinky) return "MANO ABIERTA 🖐️";
+    if (index && middle && !ring && !pinky) return "PAZ ✌️";
 
     return "—";
   }
@@ -141,81 +125,55 @@ export default function HandTracker() {
     let fingers = 0;
 
     if (results.multiHandLandmarks) {
-      const l = results.multiHandLandmarks[0];
-      const hand =
-        results.multiHandedness?.[0]?.label || "Right";
-
-      gesture = detectGesture(l);
-      fingers = countFingers(l, hand);
+      for (const l of results.multiHandLandmarks) {
+        gesture = detectGesture(l);
+        fingers = countFingers(l);
+      }
     }
 
     /* HUD */
-    ctx.fillStyle = "rgba(2,6,23,0.75)";
-    ctx.fillRect(0, 0, canvas.width, landscape ? 70 : 90);
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(0, 0, canvas.width, 96);
 
     ctx.textAlign = "center";
-    ctx.font = landscape ? "bold 26px Segoe UI" : "bold 30px Segoe UI";
-    ctx.fillStyle = "#22c55e";
-    ctx.fillText(gesture, canvas.width / 2, 32);
 
-    ctx.font = "bold 20px Segoe UI";
+    ctx.font = "bold 30px Segoe UI";
+    ctx.fillStyle = gesture === "OK 👌" ? "#facc15" : "#22c55e";
+    ctx.fillText(gesture, canvas.width / 2, 38);
+
+    ctx.font = "bold 22px Segoe UI";
     ctx.fillStyle = "#38bdf8";
-    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 58);
+    ctx.fillText(`Dedos: ${fingers}`, canvas.width / 2, 72);
   }
 
   return (
     <div
       style={{
-        height: "100dvh",
+        minHeight: "100svh",
         background: "#020617",
         display: "flex",
-        flexDirection: landscape ? "row" : "column",
+        flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        gap: landscape ? 24 : 8,
-        padding: 16,
-        boxSizing: "border-box",
+        padding: 20,
+        gap: 12,
       }}
     >
-      {/* PANEL INFO (solo landscape) */}
-      {landscape && (
-        <div
-          style={{
-            color: "#94a3b8",
-            fontSize: 14,
-            maxWidth: 220,
-            lineHeight: 1.4,
-          }}
-        >
-          <b>Hand Tracker</b>
-          <br />
-          Gestos en tiempo real
-          <br />
-          MediaPipe Hands
-        </div>
-      )}
+      <div style={{ color: "#94a3b8", fontSize: 13 }}>
+        Autor: Jorge Patricio Santamaría Cherrez
+      </div>
 
-      {/* CAMARA */}
       <div
         style={{
-          width: landscape ? "70%" : "100%",
-          maxWidth: 720,
+          width: "100%",
+          maxWidth: 640,
           aspectRatio: "4 / 3",
-          maxHeight: landscape ? "85dvh" : "75dvh",
-          borderRadius: 22,
+          borderRadius: 18,
           overflow: "hidden",
-          border: "1px solid rgba(34,197,94,0.5)",
-          boxShadow: "0 0 40px rgba(34,197,94,0.15)",
+          border: "1px solid rgba(34,197,94,0.4)",
           background: "#000",
         }}
       >
-        <video
-          ref={videoRef}
-          muted
-          autoPlay
-          playsInline
-          style={{ display: "none" }}
-        />
+        <video ref={videoRef} style={{ display: "none" }} />
         <canvas
           ref={canvasRef}
           width={640}
@@ -223,12 +181,6 @@ export default function HandTracker() {
           style={{ width: "100%", height: "100%" }}
         />
       </div>
-
-      {!landscape && (
-        <div style={{ fontSize: 11, color: "#64748b" }}>
-          © Jorge Patricio Santamaría Cherrez
-        </div>
-      )}
     </div>
   );
-    }
+}
